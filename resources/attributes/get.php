@@ -1,0 +1,15 @@
+<?php
+
+namespace fusor\resources\attributes;
+
+use Attribute;
+
+/**
+ * Description of Get
+ *
+ * @author Tim Fry <tim.fry@hotmail.com>
+ */
+#[Attribute(Attribute::IS_REPEATABLE | Attribute::TARGET_METHOD)]
+class get extends route {
+
+}
