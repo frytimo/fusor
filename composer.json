@@ -1,0 +1,20 @@
+{
+    "name": "frytimo/fusor",
+    "description": "FusionPBX Enhancement",
+    "type": "project",
+    "require": {
+        "ninsuo/php-shared-memory": "2.1"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Frytimo\\Fusor\\": "resources/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Tim Fry",
+            "email": "tim@fusionpbx.com"
+        }
+    ]
+}

@@ -1,0 +1,9 @@
+; Copy the env-example file to .env and edit the values as needed.
+; The .env file is used to configure the auto_loader settings for
+; caching discovered listeners. Setting cache to true will enable
+; caching, while setting it to false will disable caching and
+; force discovery on each request.
+;  cp .env-example .env
+
+[auto_loader]
+cache=true

@@ -44,7 +44,7 @@ class auto_loader {
 	const ATTRIBUTES_KEY = 'autoloader_attributes';
 	const ATTRIBUTES_FILE = 'autoloader_attributes_cache.php';
 	const CACHE_VERSION_KEY = 'autoloader_cache_version';
-	const CACHE_VERSION = 6;
+	const CACHE_VERSION = 7;
 	/**
 	 * Cache path and file name for classes
 	 *
@@ -98,6 +98,7 @@ class auto_loader {
 	 * @var array
 	 */
 	private $attributes;
+	private bool $cache_enabled = true;
 
 	/**
 	 * Initializes the class and sets up caching mechanisms.
@@ -108,33 +109,36 @@ class auto_loader {
 
 		//set if we can use RAM cache
 		$this->apcu_enabled = function_exists('apcu_enabled') && apcu_enabled();
+		$this->cache_enabled = !$disable_cache && $this->cache_enabled_from_env();
 
 		//set classes cache location
 		if (empty(self::$classes_file)) {
-			self::$classes_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::CLASSES_FILE;
+			self::$classes_file = self::cache_file_path(self::CLASSES_FILE);
 		}
 
 		//set interface cache location
 		if (empty(self::$interfaces_file)) {
-			self::$interfaces_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::INTERFACES_FILE;
+			self::$interfaces_file = self::cache_file_path(self::INTERFACES_FILE);
 		}
 
 		//set inheritance cache location
 		if (empty(self::$inheritance_file)) {
-			self::$inheritance_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::INHERITANCE_FILE;
+			self::$inheritance_file = self::cache_file_path(self::INHERITANCE_FILE);
 		}
 
 		//set attribute cache location
 		if (empty(self::$attributes_file)) {
-			self::$attributes_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::ATTRIBUTES_FILE;
+			self::$attributes_file = self::cache_file_path(self::ATTRIBUTES_FILE);
 		}
 
 		//classes must be loaded before this object is registered
-		if ($disable_cache || !$this->load_cache()) {
+		if (!$this->cache_enabled || !$this->load_cache()) {
 			//cache miss so load them
 			$this->reload_classes();
-			//update the cache after loading classes array
-			$this->update_cache();
+			if ($this->cache_enabled) {
+				//update the cache after loading classes array
+				$this->update_cache();
+			}
 		}
 		//register this object to load any unknown classes
 		spl_autoload_register([$this, 'loader']);
@@ -177,6 +181,7 @@ class auto_loader {
 			if (!$attributes_cached || !is_array($this->attributes)) {
 				$this->attributes = $this->default_attribute_map();
 			}
+			$this->rebuild_traits_from_classes();
 			//verify we got valid data
 			if ($classes_cached && $interfaces_cached && $inheritance_cached && !empty($this->classes)) {
 				return true;
@@ -246,6 +251,8 @@ class auto_loader {
 			apcu_store(self::ATTRIBUTES_KEY, $this->attributes);
 		}
 
+		$this->rebuild_traits_from_classes();
+
 		//return true when we have classes and false if the array is still empty
 		return ($file_cache_valid && !empty($this->classes) && !empty($this->interfaces));
 	}
@@ -261,7 +268,7 @@ class auto_loader {
 	 */
 	public function reload_classes() {
 		//set project path using magic dir constant
-		$project_path = dirname(__DIR__, 2);
+		$project_path = $this->project_path();
 
 		//build the array of all locations for classes in specific order
 		$search_path = [
@@ -284,6 +291,7 @@ class auto_loader {
 
 		//reset the current array
 		$class_list = [];
+		$this->traits = [];
 		$this->attributes = $this->default_attribute_map();
 
 		//store the class name (key) and the path (value)
@@ -322,6 +330,9 @@ class auto_loader {
 
 					// Store the class/interface/trait with its file overwriting any existing declaration.
 					$this->classes[$full_name] = $file;
+					if ($type === 'trait') {
+						$this->traits[$full_name] = $file;
+					}
 
 					// Track inheritance (what this class/interface extends)
 					if (isset($match[3]) && trim($match[3]) !== '') {
@@ -364,11 +375,33 @@ class auto_loader {
 				if (!isset($this->classes[$class_name])) {
 					$this->classes[$class_name] = $file;
 				}
+				if (strpos(str_replace('\\', '/', $file), '/resources/traits/') !== false) {
+					$this->traits[$class_name] = $file;
+				}
 			}
 		}
 
 		//scan explicit attribute metadata files (IonCube compatible)
 		$this->reload_attributes($project_path);
+	}
+
+	/**
+	 * Rebuilds the trait index from the discovered class map.
+	 *
+	 * @return void
+	 */
+	private function rebuild_traits_from_classes(): void {
+		$this->traits = [];
+
+		foreach ($this->classes as $name => $path) {
+			if (!is_string($path)) {
+				continue;
+			}
+
+			if (strpos(str_replace('\\', '/', $path), '/resources/traits/') !== false) {
+				$this->traits[$name] = $path;
+			}
+		}
 	}
 
 	/**
@@ -481,7 +514,9 @@ class auto_loader {
 	public function update() {
 		self::clear_cache();
 		$this->reload_classes();
-		$this->update_cache();
+		if ($this->cache_enabled) {
+			$this->update_cache();
+		}
 	}
 
 	/**
@@ -502,7 +537,7 @@ class auto_loader {
 
 		//set default file
 		if (empty(self::$classes_file)) {
-			self::$classes_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::CLASSES_FILE;
+			self::$classes_file = self::cache_file_path(self::CLASSES_FILE);
 		}
 
 		//set file to clear
@@ -517,7 +552,7 @@ class auto_loader {
 		}
 
 		if (empty(self::$interfaces_file)) {
-			self::$interfaces_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::INTERFACES_FILE;
+			self::$interfaces_file = self::cache_file_path(self::INTERFACES_FILE);
 		}
 
 		//set interfaces file to clear
@@ -532,7 +567,7 @@ class auto_loader {
 		}
 
 		if (empty(self::$inheritance_file)) {
-			self::$inheritance_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::INHERITANCE_FILE;
+			self::$inheritance_file = self::cache_file_path(self::INHERITANCE_FILE);
 		}
 
 		//set inheritance file to clear
@@ -547,7 +582,7 @@ class auto_loader {
 		}
 
 		if (empty(self::$attributes_file)) {
-			self::$attributes_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . self::ATTRIBUTES_FILE;
+			self::$attributes_file = self::cache_file_path(self::ATTRIBUTES_FILE);
 		}
 
 		//set attribute file to clear
@@ -1337,6 +1372,18 @@ class auto_loader {
 	}
 
 	/**
+	 * Returns a list of all discovered traits keyed by trait name.
+	 *
+	 * @return array
+	 */
+	public function get_traits(): array {
+		if (!empty($this->traits)) {
+			return $this->traits;
+		}
+		return [];
+	}
+
+	/**
 	 * The loader is set to private because only the PHP engine should be calling this method
 	 *
 	 * @param string $class_name The class name that needs to be loaded
@@ -1362,8 +1409,10 @@ class auto_loader {
 				//remove the class from the array
 				unset($this->classes[$class_name]);
 
-				//update the cache with new classes
-				$this->update_cache();
+				if ($this->cache_enabled) {
+					//update the cache with new classes
+					$this->update_cache();
+				}
 
 				//return failure
 				return false;
@@ -1382,7 +1431,7 @@ class auto_loader {
 		self::log(LOG_WARNING, "class '$class_name' not found in cache");
 
 		//set project path using magic dir constant
-		$project_path = dirname(__DIR__, 2);
+		$project_path = $this->project_path();
 
 		//build the search path array
 		$search_path[] = glob($project_path . "/resources/interfaces/" . $class_name . ".php");
@@ -1411,8 +1460,10 @@ class auto_loader {
 			//inject the class in to the array
 			$this->classes[$class_name] = $path;
 
-			//update the cache with new classes
-			$this->update_cache();
+			if ($this->cache_enabled) {
+				//update the cache with new classes
+				$this->update_cache();
+			}
 
 			//return boolean
 			return true;
@@ -1423,5 +1474,66 @@ class auto_loader {
 
 		//return boolean
 		return false;
+	}
+
+	/**
+	 * Resolves the FusionPBX project root directory.
+	 *
+	 * @return string
+	 */
+	private function project_path(): string {
+		$candidate = dirname(__DIR__, 4);
+		if (is_dir($candidate . '/resources/classes')) {
+			return $candidate;
+		}
+
+		return dirname(__DIR__, 2);
+	}
+
+	/**
+	 * Determines whether class cache is enabled via app/fusor/.env.
+	 *
+	 * Expected format:
+	 * [auto_loader]
+	 * cache=true|false
+	 *
+	 * @return bool
+	 */
+	private function cache_enabled_from_env(): bool {
+		$env_file = dirname(__DIR__, 2) . '/.env';
+		if (!is_file($env_file)) {
+			return true;
+		}
+
+		$env = @parse_ini_file($env_file, true, INI_SCANNER_RAW);
+		if (!is_array($env)) {
+			return true;
+		}
+
+		$value = $env['auto_loader']['cache'] ?? null;
+		if ($value === null) {
+			return true;
+		}
+
+		$normalized = strtolower(trim((string) $value));
+		if ($normalized === 'false' || $normalized === '0' || $normalized === 'off' || $normalized === 'no') {
+			return false;
+		}
+
+		if ($normalized === 'true' || $normalized === '1' || $normalized === 'on' || $normalized === 'yes') {
+			return true;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Builds a SAPI-scoped cache file path to avoid CLI/FPM ownership collisions.
+	 */
+	private static function cache_file_path(string $base_file): string {
+		$sapi = preg_replace('/[^a-z0-9_]/i', '_', PHP_SAPI ?: 'unknown');
+		$file_name = preg_replace('/\.php$/', '_' . $sapi . '.php', $base_file);
+
+		return sys_get_temp_dir() . DIRECTORY_SEPARATOR . $file_name;
 	}
 }

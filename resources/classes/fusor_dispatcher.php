@@ -1,6 +1,6 @@
 <?php
 
-namespace fusor\resources\classes;
+namespace frytimo\fusor\resources\classes;
 
 class fusor_dispatcher {
 	private static array $listeners = [];
@@ -19,6 +19,27 @@ class fusor_dispatcher {
 		self::$listeners = [];
 	}
 
+	public static function has_listeners(string $event_name): bool {
+		$event_name = trim($event_name);
+		if ($event_name === '') {
+			return false;
+		}
+
+		foreach (self::$listeners as $registered_event => $prioritized_listeners) {
+			if (!fnmatch($registered_event, $event_name)) {
+				continue;
+			}
+
+			foreach ($prioritized_listeners as $listeners) {
+				if (!empty($listeners)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
 	/**
 	 * Register all static public methods using #[on(...)] discovered by fusor_discovery.
 	 *
@@ -29,6 +50,10 @@ class fusor_dispatcher {
 	 */
 	public static function register_discovered_listeners(\auto_loader $autoload, bool $force_refresh = false): int {
 		require_once dirname(__DIR__) . '/attributes/on.php';
+
+		if ($force_refresh && method_exists($autoload, 'update')) {
+			$autoload->update();
+		}
 
 		fusor_discovery::discover_attributes($autoload, $force_refresh);
 		self::clear_listeners();
@@ -67,7 +92,7 @@ class fusor_dispatcher {
 				continue;
 			}
 
-			$attributes = $reflection_method->getAttributes('fusor\\resources\\attributes\\on', \ReflectionAttribute::IS_INSTANCEOF);
+			$attributes = $reflection_method->getAttributes('frytimo\\fusor\\resources\\attributes\\on', \ReflectionAttribute::IS_INSTANCEOF);
 			foreach ($attributes as $attribute) {
 				try {
 					$listener_attribute = $attribute->newInstance();

@@ -1,6 +1,6 @@
 <?php
 
-namespace fusor\resources\classes;
+namespace frytimo\fusor\resources\classes;
 
 use auto_loader;
 

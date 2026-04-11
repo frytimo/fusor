@@ -1,0 +1,60 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "f4ad49501fdbbcb0618e88ff54998c1f",
+    "packages": [
+        {
+            "name": "ninsuo/php-shared-memory",
+            "version": "v2.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ninsuo/php-shared-memory.git",
+                "reference": "177dec599bd6aacc5b1cffcedcf8bdd7b8734cae"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/ninsuo/php-shared-memory/zipball/177dec599bd6aacc5b1cffcedcf8bdd7b8734cae",
+                "reference": "177dec599bd6aacc5b1cffcedcf8bdd7b8734cae",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Fuz\\Component\\SharedMemory\\": "src/Fuz/Component/SharedMemory"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Alain Tiemblo",
+                    "email": "alain@fuz.org"
+                }
+            ],
+            "description": "Share variables across multiple PHP apps",
+            "homepage": "https://github.com/ninsuo/php-shared-memory",
+            "support": {
+                "issues": "https://github.com/ninsuo/php-shared-memory/issues",
+                "source": "https://github.com/ninsuo/php-shared-memory/tree/v2.1.0"
+            },
+            "time": "2023-10-06T15:35:56+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {},
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
+}

@@ -1,8 +1,8 @@
 <?php
 
-namespace fusor\resources\classes;
+namespace frytimo\fusor\resources\classes;
 
-use fusor\resources\attributes\on;
+use frytimo\fusor\resources\attributes\on;
 
 final class missed_call_webhook_listener {
 	private static int $handled_count = 0;
