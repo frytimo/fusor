@@ -11,10 +11,17 @@ if (version_compare(PHP_VERSION, '8.4', '<')) {
 // Protect against multiple includes
 if (!defined('FUSOR_DIR')) {
 	define('FUSOR_DIR', __DIR__);
+	$project_root = dirname(FUSOR_DIR, 2);
 
-	// Get the files to bootstrap in the correct order and include them
-	$files = glob(FUSOR_DIR . '/resources/bootstrap/*.php');
-	sort($files);
+	// Load Fusor bootstrap files first, then app bootstrap files project-wide.
+	$fusor_bootstrap_files = glob(FUSOR_DIR . '/resources/bootstrap/*.php') ?: [];
+	sort($fusor_bootstrap_files);
+
+	$project_bootstrap_files = glob($project_root . '/*/*/resources/bootstrap/*.php') ?: [];
+	sort($project_bootstrap_files);
+
+	$files = array_merge($fusor_bootstrap_files, $project_bootstrap_files);
+	$files = array_values(array_unique($files));
 
 	// Include each bootstrap file in order
 	foreach ($files as $filename) {
