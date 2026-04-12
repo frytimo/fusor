@@ -11,7 +11,7 @@ class http_route_hook_dispatcher {
 		}
 
 		$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? ''));
-		if ($method !== 'GET' && $method !== 'POST') {
+		if (!in_array($method, ['GET', 'POST', 'PUT'], true)) {
 			return 0;
 		}
 
@@ -23,17 +23,24 @@ class http_route_hook_dispatcher {
 		require_once dirname(__DIR__) . '/attributes/route.php';
 		require_once dirname(__DIR__) . '/attributes/get.php';
 		require_once dirname(__DIR__) . '/attributes/post.php';
+		require_once dirname(__DIR__) . '/attributes/put.php';
 		require_once __DIR__ . '/fusor_discovery.php';
 		require_once __DIR__ . '/fusor_event.php';
 
-		if ($force_refresh && method_exists($autoload, 'update')) {
+		$supports_attribute_discovery = method_exists($autoload, 'get_attributes');
+
+		if ($supports_attribute_discovery && $force_refresh && method_exists($autoload, 'update')) {
 			$autoload->update();
 		}
 
-		fusor_discovery::discover_attributes($autoload, $force_refresh);
-
-		$attribute_name = $method === 'GET' ? 'get' : 'post';
-		$methods = fusor_discovery::get_methods($attribute_name);
+		$attribute_name = strtolower($method);
+		$methods = [];
+		if ($supports_attribute_discovery) {
+			fusor_discovery::discover_attributes($autoload, $force_refresh);
+			$methods = fusor_discovery::get_methods($attribute_name);
+		} else {
+			$methods = self::discover_methods_by_reflection($attribute_name);
+		}
 		$invoked = 0;
 		$processed_methods = [];
 
@@ -111,10 +118,39 @@ class http_route_hook_dispatcher {
 		return $invoked;
 	}
 
+	private static function discover_methods_by_reflection(string $attribute_name): array {
+		$attribute_class = 'frytimo\\fusor\\resources\\attributes\\' . strtolower($attribute_name);
+		$methods = [];
+
+		foreach (get_declared_classes() as $class_name) {
+			try {
+				$reflection_class = new \ReflectionClass($class_name);
+			} catch (\ReflectionException $exception) {
+				continue;
+			}
+
+			foreach ($reflection_class->getMethods(\ReflectionMethod::IS_PUBLIC) as $reflection_method) {
+				if (!$reflection_method->isStatic()) {
+					continue;
+				}
+
+				$attributes = $reflection_method->getAttributes($attribute_class, \ReflectionAttribute::IS_INSTANCEOF);
+				if (empty($attributes)) {
+					continue;
+				}
+
+				$methods[] = [
+					'class' => $class_name,
+					'method' => $reflection_method->getName(),
+				];
+			}
+		}
+
+		return $methods;
+	}
+
 	private static function get_route_attributes(\ReflectionMethod $reflection_method, string $method): array {
-		$attribute_class = $method === 'GET'
-			? 'frytimo\\fusor\\resources\\attributes\\get'
-			: 'frytimo\\fusor\\resources\\attributes\\post';
+		$attribute_class = 'frytimo\\fusor\\resources\\attributes\\' . strtolower($method);
 
 		$attributes = $reflection_method->getAttributes($attribute_class, \ReflectionAttribute::IS_INSTANCEOF);
 		$instances = [];
@@ -189,10 +225,10 @@ class http_route_hook_dispatcher {
 				continue;
 			}
 
-			$regex_segments[] = preg_quote($segment, '/');
+			$regex_segments[] = preg_quote($segment, '#');
 		}
 
-		$regex = '/^\/' . implode('\/', $regex_segments) . '$/';
+		$regex = '#^/' . implode('/', $regex_segments) . '$#';
 		$matched = preg_match($regex, $request_path, $matches);
 		if ($matched !== 1) {
 			return false;

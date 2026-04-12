@@ -7,3 +7,10 @@
 
 [auto_loader]
 cache=true
+; Optional: override class scan root (FusionPBX project root).
+; Leave empty to auto-detect from directory structure.
+; scan_path=/var/www/fusionpbx
+
+; Enable this only for CLI smoke tests. Keep false in production.
+[http_route_hooks]
+allow_cli=false

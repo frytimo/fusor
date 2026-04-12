@@ -98,6 +98,12 @@ class auto_loader {
 	 * @var array
 	 */
 	private $attributes;
+	/**
+	 * Parsed settings from app/fusor/.env.
+	 *
+	 * @var array|null
+	 */
+	private $env_settings = null;
 	private bool $cache_enabled = true;
 
 	/**
@@ -271,17 +277,7 @@ class auto_loader {
 		$project_path = $this->project_path();
 
 		//build the array of all locations for classes in specific order
-		$search_path = [
-			$project_path . '/resources/interfaces/*.php',
-			$project_path . '/resources/traits/*.php',
-			$project_path . '/resources/classes/*.php',
-			$project_path . '/resources/classes/*/*.php',
-			$project_path . '/*/*/resources/interfaces/*.php',
-			$project_path . '/*/*/resources/traits/*.php',
-			$project_path . '/*/*/resources/classes/*.php',
-			$project_path . '/*/*/resources/classes/*/*.php',
-			$project_path . '/core/authentication/resources/classes/plugins/*.php',
-		];
+		$search_path = $this->class_search_paths($project_path);
 
 		//get all php files for each path
 		$files = [];
@@ -1434,14 +1430,10 @@ class auto_loader {
 		$project_path = $this->project_path();
 
 		//build the search path array
-		$search_path[] = glob($project_path . "/resources/interfaces/" . $class_name . ".php");
-		$search_path[] = glob($project_path . "/resources/traits/" . $class_name . ".php");
-		$search_path[] = glob($project_path . "/resources/classes/" . $class_name . ".php");
-		$search_path[] = glob($project_path . "/resources/classes/*/" . $class_name . ".php");
-		$search_path[] = glob($project_path . "/*/*/resources/interfaces/" . $class_name . ".php");
-		$search_path[] = glob($project_path . "/*/*/resources/traits/" . $class_name . ".php");
-		$search_path[] = glob($project_path . "/*/*/resources/classes/" . $class_name . ".php");
-		$search_path[] = glob($project_path . "/*/*/resources/classes/*/" . $class_name . ".php");
+		$search_path = [];
+		foreach ($this->class_search_paths($project_path, $class_name) as $path) {
+			$search_path[] = glob($path);
+		}
 
 		//fix class names in the plugins directory prefixed with 'plugin_'
 		if (str_starts_with($class_name, 'plugin_')) {
@@ -1482,12 +1474,164 @@ class auto_loader {
 	 * @return string
 	 */
 	private function project_path(): string {
+		$configured_project_path = $this->project_path_from_env();
+		if ($configured_project_path !== null) {
+			return $configured_project_path;
+		}
+
 		$candidate = dirname(__DIR__, 4);
 		if (is_dir($candidate . '/resources/classes')) {
 			return $candidate;
 		}
 
 		return dirname(__DIR__, 2);
+	}
+
+	/**
+	 * Resolves the optional class scan root from app/fusor/.env.
+	 *
+	 * Supported keys:
+	 * [auto_loader] scan_path=/path/to/fusionpbx
+	 * [classes] scan_path=/path/to/fusionpbx
+	 *
+	 * @return string|null
+	 */
+	private function project_path_from_env(): ?string {
+		$env = $this->env_settings();
+		$value = $env['auto_loader']['scan_path']
+			?? ($env['classes']['scan_path'] ?? null)
+			?? ($env['auto_loader']['project_path'] ?? ($env['classes']['project_path'] ?? null));
+
+		if (is_array($value)) {
+			return null;
+		}
+
+		if (!is_string($value)) {
+			return null;
+		}
+
+		$path = rtrim(trim($value), '/');
+		if ($path === '') {
+			return null;
+		}
+
+		if (is_dir($path . '/resources/classes')) {
+			return $path;
+		}
+
+		self::log(LOG_WARNING, "invalid .env scan_path '$path' (expected FusionPBX root containing resources/classes)");
+		return null;
+	}
+
+	/**
+	 * Builds class discovery search paths from env config or defaults.
+	 *
+	 * Supported config:
+	 * [auto_loader]
+	 * scan_path.0=/resources/interfaces/*.php
+	 * scan_path.1=/resources/traits/*.php
+	 * ...
+	 *
+	 * @param string $project_path
+	 * @param string $class_name Optional class to target one-file lookups
+	 *
+	 * @return array
+	 */
+	private function class_search_paths(string $project_path, string $class_name = ''): array {
+		$patterns = $this->configured_search_patterns_from_env();
+		if (empty($patterns)) {
+			$patterns = [
+				'/resources/interfaces/*.php',
+				'/resources/traits/*.php',
+				'/resources/classes/*.php',
+				'/resources/classes/*/*.php',
+				'/*/*/resources/interfaces/*.php',
+				'/*/*/resources/traits/*.php',
+				'/*/*/resources/classes/*.php',
+				'/*/*/resources/classes/*/*.php',
+				'/core/authentication/resources/classes/plugins/*.php',
+			];
+		}
+
+		$search_paths = [];
+		$normalized_root = rtrim($project_path, '/');
+		foreach ($patterns as $pattern) {
+			$relative_pattern = $this->normalize_search_pattern($pattern);
+			if ($relative_pattern === '') {
+				continue;
+			}
+
+			$resolved_pattern = $relative_pattern;
+			if ($class_name !== '') {
+				$resolved_pattern = preg_replace('/\*\.php$/', $class_name . '.php', $relative_pattern) ?? $relative_pattern;
+			}
+
+			$search_paths[] = $normalized_root . $resolved_pattern;
+		}
+
+		return array_values(array_unique($search_paths));
+	}
+
+	/**
+	 * Reads indexed scan_path.* patterns from app/fusor/.env.
+	 *
+	 * @return array
+	 */
+	private function configured_search_patterns_from_env(): array {
+		$env = $this->env_settings();
+		$settings = $env['auto_loader'] ?? [];
+		if (!is_array($settings)) {
+			return [];
+		}
+
+		$patterns = [];
+		foreach ($settings as $key => $value) {
+			if (!is_string($key) || !is_string($value)) {
+				continue;
+			}
+
+			if (strpos($key, 'scan_path.') !== 0 && strpos($key, 'project_path.') !== 0) {
+				continue;
+			}
+
+			$prefix = strpos($key, 'scan_path.') === 0 ? 'scan_path.' : 'project_path.';
+			$index = (int) substr($key, strlen($prefix));
+			$normalized = $this->normalize_search_pattern($value);
+			if ($normalized === '') {
+				continue;
+			}
+
+			$patterns[$index] = $normalized;
+		}
+
+		if (empty($patterns)) {
+			return [];
+		}
+
+		ksort($patterns);
+		return array_values($patterns);
+	}
+
+	/**
+	 * Normalizes one configured search pattern.
+	 *
+	 * @param string $pattern
+	 *
+	 * @return string
+	 */
+	private function normalize_search_pattern(string $pattern): string {
+		$normalized = trim($pattern);
+		$normalized = rtrim($normalized, ',');
+		$normalized = trim($normalized, " \n\r\t\v\x00\"'");
+		if ($normalized === '') {
+			return '';
+		}
+
+		if (!str_starts_with($normalized, '/')) {
+			$normalized = '/' . $normalized;
+		}
+
+		return $normalized;
 	}
 
 	/**
@@ -1500,15 +1644,7 @@ class auto_loader {
 	 * @return bool
 	 */
 	private function cache_enabled_from_env(): bool {
-		$env_file = dirname(__DIR__, 2) . '/.env';
-		if (!is_file($env_file)) {
-			return true;
-		}
-
-		$env = @parse_ini_file($env_file, true, INI_SCANNER_RAW);
-		if (!is_array($env)) {
-			return true;
-		}
+		$env = $this->env_settings();
 
 		$value = $env['auto_loader']['cache'] ?? null;
 		if ($value === null) {
@@ -1525,6 +1661,43 @@ class auto_loader {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Reads app/fusor/.env settings once per request.
+	 *
+	 * @return array
+	 */
+	private function env_settings(): array {
+		if (is_array($this->env_settings)) {
+			return $this->env_settings;
+		}
+
+		$fusor_path = dirname(__DIR__, 2);
+		$env_loader_file = $fusor_path . '/resources/classes/env_loader.php';
+
+		if (!class_exists('env_loader', false) && is_file($env_loader_file)) {
+			require_once $env_loader_file;
+		}
+
+		if (class_exists('env_loader', false)) {
+			env_loader::load_env_file($fusor_path);
+			env_loader::set_env();
+			$env = env_loader::get_settings();
+			$this->env_settings = is_array($env) ? $env : [];
+			return $this->env_settings;
+		}
+
+		$env_file = $fusor_path . '/.env';
+		if (!is_file($env_file)) {
+			$this->env_settings = [];
+			return $this->env_settings;
+		}
+
+		$env = @parse_ini_file($env_file, true, INI_SCANNER_RAW);
+		$this->env_settings = is_array($env) ? $env : [];
+
+		return $this->env_settings;
 	}
 
 	/**

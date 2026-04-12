@@ -212,6 +212,10 @@ class fusor_discovery {
 	 * @return int
 	 */
 	private static function get_source_mtime(): int {
+		if (!defined('auto_loader::ATTRIBUTES_FILE')) {
+			return 0;
+		}
+
 		$attributes_cache_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . auto_loader::ATTRIBUTES_FILE;
 		if (!file_exists($attributes_cache_file)) {
 			return 0;

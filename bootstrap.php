@@ -18,10 +18,17 @@ if (!defined('FUSOR_DIR')) {
 	sort($fusor_bootstrap_files);
 
 	$project_bootstrap_files = glob($project_root . '/*/*/resources/bootstrap/*.php') ?: [];
-	sort($project_bootstrap_files);
 
 	$files = array_merge($fusor_bootstrap_files, $project_bootstrap_files);
 	$files = array_values(array_unique($files));
+	usort($files, static function (string $a, string $b): int {
+		$name_compare = strcmp(basename($a), basename($b));
+		if ($name_compare !== 0) {
+			return $name_compare;
+		}
+
+		return strcmp($a, $b);
+	});
 
 	// Include each bootstrap file in order
 	foreach ($files as $filename) {
