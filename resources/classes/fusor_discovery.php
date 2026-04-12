@@ -32,6 +32,13 @@ class fusor_discovery {
 			'methods' => [],
 		];
 
+		if (!method_exists($auto_loader, 'get_attributes')) {
+			// Keep startup compatible when the global auto_loader implementation
+			// does not yet expose attribute metadata helpers.
+			self::store_cache($source_mtime);
+			return;
+		}
+
 		$attributes = $auto_loader->get_attributes();
 		foreach ($attributes as $target_type => $targets) {
 			if (!is_array($targets)) {
