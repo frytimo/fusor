@@ -5,12 +5,24 @@ namespace frytimo\fusor\resources\classes;
 use Fuz\Component\SharedMemory\SharedMemory;
 use Fuz\Component\SharedMemory\Storage\StorageInterface;
 
+/**
+ * Message queue.
+ */
 class message_queue extends SharedMemory {
+		/**
+		 * Construct.
+		 * @param mixed $storage
+		 * @return mixed
+		 */
 		public function __construct(StorageInterface $storage) {
 			parent::__construct($storage);
 			parent::__set('list', []);
 		}
 
+		/**
+		 * Queue.
+		 * @return array
+		 */
 		public function queue(): array {
 			return parent::__get('list');
 		}

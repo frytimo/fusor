@@ -3,6 +3,7 @@
     "description": "FusionPBX Enhancement",
     "type": "project",
     "require": {
+        "php": ">=8.2",
         "ninsuo/php-shared-memory": "2.1"
     },
     "license": "MIT",

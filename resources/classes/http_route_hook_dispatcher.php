@@ -2,16 +2,25 @@
 
 namespace frytimo\fusor\resources\classes;
 
+/**
+ * Http route hook dispatcher.
+ */
 class http_route_hook_dispatcher {
 	private static bool $dispatched = false;
 
+	/**
+	 * Dispatch request hooks.
+	 * @param mixed $autoload
+	 * @param mixed $force_refresh
+	 * @return int
+	 */
 	public static function dispatch_request_hooks(\auto_loader $autoload, bool $force_refresh = false): int {
 		if (self::$dispatched) {
 			return 0;
 		}
 
 		$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? ''));
-		if (!in_array($method, ['GET', 'POST', 'PUT'], true)) {
+		if (!in_array($method, ['GET', 'POST'], true)) {
 			return 0;
 		}
 
@@ -23,7 +32,6 @@ class http_route_hook_dispatcher {
 		require_once dirname(__DIR__) . '/attributes/route.php';
 		require_once dirname(__DIR__) . '/attributes/get.php';
 		require_once dirname(__DIR__) . '/attributes/post.php';
-		require_once dirname(__DIR__) . '/attributes/put.php';
 		require_once __DIR__ . '/fusor_discovery.php';
 		require_once __DIR__ . '/fusor_event.php';
 
@@ -118,6 +126,11 @@ class http_route_hook_dispatcher {
 		return $invoked;
 	}
 
+	/**
+	 * Discover methods by reflection.
+	 * @param mixed $attribute_name
+	 * @return array
+	 */
 	private static function discover_methods_by_reflection(string $attribute_name): array {
 		$attribute_class = 'frytimo\\fusor\\resources\\attributes\\' . strtolower($attribute_name);
 		$methods = [];
@@ -149,6 +162,12 @@ class http_route_hook_dispatcher {
 		return $methods;
 	}
 
+	/**
+	 * Get route attributes.
+	 * @param mixed $reflection_method
+	 * @param mixed $method
+	 * @return array
+	 */
 	private static function get_route_attributes(\ReflectionMethod $reflection_method, string $method): array {
 		$attribute_class = 'frytimo\\fusor\\resources\\attributes\\' . strtolower($method);
 
@@ -166,6 +185,10 @@ class http_route_hook_dispatcher {
 		return $instances;
 	}
 
+	/**
+	 * Resolve request path.
+	 * @return string
+	 */
 	private static function resolve_request_path(): string {
 		$request_uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
 		if ($request_uri !== '') {
@@ -179,6 +202,11 @@ class http_route_hook_dispatcher {
 		return self::normalize_path($script_name);
 	}
 
+	/**
+	 * Normalize path.
+	 * @param mixed $path
+	 * @return string
+	 */
 	private static function normalize_path(string $path): string {
 		$path = trim($path);
 		if ($path === '') {
@@ -195,6 +223,13 @@ class http_route_hook_dispatcher {
 		return $path;
 	}
 
+	/**
+	 * Path matches.
+	 * @param mixed $route_path
+	 * @param mixed $request_path
+	 * @param mixed $route_params
+	 * @return bool
+	 */
 	private static function path_matches(string $route_path, string $request_path, array &$route_params): bool {
 		if ($route_path === $request_path) {
 			$route_params = [];
@@ -243,3 +278,4 @@ class http_route_hook_dispatcher {
 		return true;
 	}
 }
+

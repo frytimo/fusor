@@ -1,0 +1,27 @@
+; Author: Tim Fry <tim@fusionpbx.com>
+; cp /var/www/fusionpbx/app/fusor/resources/service/debian.service /etc/systemd/system/fusor.service
+; systemctl daemon-reload
+; systemctl enable fusor
+; systemctl start fusor
+
+[Unit]
+Description=FusionPBX Fusor Switch Service
+Wants=network-online.target
+Requires=network.target local-fs.target
+After=network.target network-online.target local-fs.target
+StartLimitIntervalSec=0
+
+[Service]
+WorkingDirectory=/var/www/fusionpbx
+ExecStart=/usr/bin/php /var/www/fusionpbx/app/fusor/resources/service/fusor.php
+ExecReload=/bin/kill -SIGUSR1 $MAINPID
+RuntimeDirectory=fusionpbx
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+User=www-data
+Group=www-data
+TimeoutSec=55s
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

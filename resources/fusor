@@ -1,0 +1,275 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Resolve the Fusor application directory.
+ * @return string
+ */
+function fusor_resolve_dir(): string {
+	$script_path = realpath($_SERVER['argv'][0] ?? __FILE__) ?: __FILE__;
+	$script_dir = dirname($script_path);
+
+	$candidates = [
+		getenv('FUSOR_DIR') ?: '',
+		dirname(__DIR__),
+		dirname($script_dir),
+		getcwd() . '/app/fusor',
+		'/var/www/fusionpbx/app/fusor',
+	];
+
+	foreach ($candidates as $candidate) {
+		$candidate = rtrim((string) $candidate, '/');
+		if ($candidate === '') {
+			continue;
+		}
+
+		if (is_file($candidate . '/bootstrap.php') && is_file(dirname($candidate, 2) . '/resources/require.php')) {
+			return $candidate;
+		}
+	}
+
+	throw new RuntimeException('Unable to locate Fusor directory. Set FUSOR_DIR to your app/fusor path.');
+}
+
+$fusor_dir = fusor_resolve_dir();
+require_once $fusor_dir . '/bootstrap.php';
+require_once dirname($fusor_dir, 2) . '/resources/require.php';
+
+use frytimo\fusor\resources\classes\fusor_service;
+
+/**
+ * Fusor command line utility.
+ */
+class fusor_cli {
+
+	/**
+	 * @var array<int, array<string, mixed>>
+	 */
+	protected static array $available_command_options = [];
+
+	/**
+	 * @var array<string, mixed>
+	 */
+	protected static array $parsed_command_options = [];
+
+	/**
+	 * @var bool
+	 */
+	protected static bool $should_exit = false;
+
+	/**
+	 * Run the CLI utility.
+	 * @return int
+	 */
+	public static function run(): int {
+		self::parse_command_options();
+
+		if (empty(self::$parsed_command_options)) {
+			return self::update_cache();
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Parse and execute command options.
+	 * @return void
+	 */
+	protected static function parse_command_options(): void {
+		self::$available_command_options = self::base_command_options();
+		self::set_command_options();
+
+		$short_options = self::get_short_options();
+		$long_options = self::get_long_options();
+		$options = getopt($short_options, $long_options);
+
+		if ($options === false) {
+			self::$parsed_command_options = [];
+			return;
+		}
+
+		self::$parsed_command_options = $options;
+
+		foreach ($options as $option_key => $option_value) {
+			$functions = self::get_callbacks_for_option((string) $option_key);
+			foreach ($functions as $function) {
+				self::call_function((string) $function, $option_value);
+				if (self::$should_exit) {
+					return;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Base command options.
+	 * @return array<int, array<string, mixed>>
+	 */
+	protected static function base_command_options(): array {
+		return [
+			command_option::new([
+				'short_option' => 'h',
+				'long_option' => 'help',
+				'description' => 'Show help information',
+				'short_description' => '-h',
+				'long_description' => '--help',
+				'functions' => ['display_help_message', 'shutdown'],
+			])->to_array(),
+			command_option::new([
+				'short_option' => 'v',
+				'long_option' => 'version',
+				'description' => 'Show Fusor version information',
+				'short_description' => '-v',
+				'long_description' => '--version',
+				'functions' => ['display_version', 'shutdown'],
+			])->to_array(),
+		];
+	}
+
+	/**
+	 * Extend command options.
+	 * @return void
+	 */
+	protected static function set_command_options(): void {
+		self::append_command_option(command_option::new([
+			'short_option' => 'u',
+			'long_option' => 'update-cache',
+			'description' => 'Refresh FusionPBX auto-loader cache (classes, interfaces, inheritance, attributes)',
+			'short_description' => '-u',
+			'long_description' => '--update-cache',
+			'functions' => ['update_cache'],
+		]));
+	}
+
+	/**
+	 * Display version.
+	 * @return void
+	 */
+	protected static function display_version(): void {
+		echo 'Fusor version ' . fusor_service::VERSION . PHP_EOL;
+	}
+
+	/**
+	 * Display help.
+	 * @return void
+	 */
+	protected static function display_help_message(): void {
+		$width_short = max(array_map(static function (array $option): int {
+			return strlen((string) ($option['short_description'] ?? ''));
+		}, self::$available_command_options));
+		$width_long = max(array_map(static function (array $option): int {
+			return strlen((string) ($option['long_description'] ?? ''));
+		}, self::$available_command_options));
+
+		$script = basename((string) ($_SERVER['argv'][0] ?? 'fusor'));
+		echo "Usage: $script [options]\n";
+		echo "Options:\n";
+		foreach (self::$available_command_options as $option) {
+			printf(
+				"%-{$width_short}s %-{$width_long}s %s" . PHP_EOL,
+				(string) ($option['short_description'] ?? ''),
+				(string) ($option['long_description'] ?? ''),
+				(string) ($option['description'] ?? '')
+			);
+		}
+	}
+
+	/**
+	 * Update cache.
+	 * @return int
+	 */
+	protected static function update_cache(): int {
+		global $autoload;
+
+		if (!isset($autoload) || !$autoload instanceof auto_loader) {
+			$autoload = new auto_loader();
+		}
+
+		$autoload->update();
+		echo 'Auto-loader cache refreshed.' . PHP_EOL;
+		return 0;
+	}
+
+	/**
+	 * Shutdown command execution chain.
+	 * @return void
+	 */
+	protected static function shutdown(): void {
+		self::$should_exit = true;
+	}
+
+	/**
+	 * Append a command option.
+	 * @param command_option $option
+	 * @return int
+	 */
+	public static function append_command_option(command_option $option): int {
+		$index = count(self::$available_command_options);
+		self::$available_command_options[$index] = $option->to_array();
+		return $index;
+	}
+
+	/**
+	 * Get short options for getopt.
+	 * @return string
+	 */
+	protected static function get_short_options(): string {
+		return implode('', array_map(static function (array $option): string {
+			return (string) ($option['short_option'] ?? '');
+		}, self::$available_command_options));
+	}
+
+	/**
+	 * Get long options for getopt.
+	 * @return array<int, string>
+	 */
+	protected static function get_long_options(): array {
+		return array_map(static function (array $option): string {
+			return (string) ($option['long_option'] ?? '');
+		}, self::$available_command_options);
+	}
+
+	/**
+	 * Get callbacks for a parsed option.
+	 * @param string $set_option
+	 * @return array<int, string>
+	 */
+	protected static function get_callbacks_for_option(string $set_option): array {
+		foreach (self::$available_command_options as $option) {
+			$short_option = rtrim((string) ($option['short_option'] ?? ''), ':');
+			$long_option = rtrim((string) ($option['long_option'] ?? ''), ':');
+			if ($short_option === $set_option || $long_option === $set_option) {
+				$functions = $option['functions'] ?? [];
+				return is_array($functions) ? array_values($functions) : [];
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * Call a configured function.
+	 * @param string $function
+	 * @param mixed $value
+	 * @return void
+	 */
+	protected static function call_function(string $function, $value): void {
+		if (method_exists(static::class, $function)) {
+			$method = new ReflectionMethod(static::class, $function);
+			if ($method->getNumberOfRequiredParameters() > 0) {
+				static::$function((string) $value);
+			} else {
+				static::$function();
+			}
+		}
+	}
+}
+
+try {
+	exit(fusor_cli::run());
+} catch (Throwable $ex) {
+	echo 'Error occurred in ' . $ex->getFile() . ' (' . $ex->getLine() . '): ' . $ex->getMessage() . PHP_EOL;
+	exit($ex->getCode() ?: 1);
+}

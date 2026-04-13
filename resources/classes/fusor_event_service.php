@@ -5,6 +5,9 @@ use event_socket;
 use frytimo\fusor\resources\classes\message_queue;
 use service;
 
+/**
+ * Fusor event service.
+ */
 class fusor_event_service extends service {
 	const FUSOR_VERSION             = '1.0.0';
 	const SUPERVISOR_EXIT           = '!EXIT!';
@@ -18,20 +21,40 @@ class fusor_event_service extends service {
 
 	protected static message_queue $message_queue;
 
+	/**
+	 * Set command options.
+	 * @return mixed
+	 */
 	protected static function set_command_options() {}
 
+	/**
+	 * Display version.
+	 * @return void
+	 */
 	protected static function display_version(): void {
 		echo "Fusor Event Service version " . self::FUSOR_VERSION . "\n";
 	}
 
+	/**
+	 * Run.
+	 * @return int
+	 */
 	public function run(): int {
 		return 0;
 	}
 
+	/**
+	 * Reload settings.
+	 * @return void
+	 */
 	protected function reload_settings(): void {
 		self::load_plugins();
 	}
 
+	/**
+	 * Load plugins.
+	 * @return mixed
+	 */
 	public static function load_plugins() {
 		self::$listeners = [];
 		$files           = glob(__DIR__ . '/events/*.php');
@@ -45,11 +68,21 @@ class fusor_event_service extends service {
 		}
 	}
 
+	/**
+	 * Register listener.
+	 * @param mixed $eventRelayListenerClass
+	 * @return mixed
+	 */
 	public static function register_listener(string $eventRelayListenerClass) {
 		print "Registering {$eventRelayListenerClass} for event '{$eventRelayListenerClass::registerEventName()}'\n";
 		self::$listeners[$eventRelayListenerClass::registerEventName()][] = $eventRelayListenerClass;
 	}
 
+	/**
+	 * Run child.
+	 * @param mixed $sleep_time
+	 * @return mixed
+	 */
 	private static function run_child(int $sleep_time = 3) {
 		$mq = self::$message_queue;
 		$mq->set('child_pid', posix_getpid());
@@ -101,6 +134,11 @@ class fusor_event_service extends service {
 		}
 	}
 
+	/**
+	 * Signal handler.
+	 * @param mixed $signal
+	 * @return mixed
+	 */
 	public static function signal_handler(int $signal) {
 		switch ($signal) {
 			case SIGUSR1:
@@ -112,6 +150,13 @@ class fusor_event_service extends service {
 		}
 	}
 
+	/**
+	 * Event trigger.
+	 * @param mixed $event_name
+	 * @param mixed $event_id
+	 * @param mixed $event_arr
+	 * @return mixed
+	 */
 	private static function event_trigger(string $event_name, Uuid $event_id, array $event_arr) {
 		$mq = self::$message_queue;
 		foreach (self::$listeners[$event_name] as $event_object) {
@@ -141,6 +186,10 @@ class fusor_event_service extends service {
 		}
 	}
 
+	/**
+	 * Run supervisor.
+	 * @return void
+	 */
 	private static function run_supervisor(): void {
 		// variable short name
 		$mq      = self::$message_queue;
@@ -193,3 +242,4 @@ class fusor_event_service extends service {
 		print "DONE.\n";
 	}
 }
+

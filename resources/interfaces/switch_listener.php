@@ -9,3 +9,4 @@
 // 	#[on(event_name: 'call.*', priority: 0)]
 // 	public function handle(fusor_event $fusor_event): void;
 // }
+

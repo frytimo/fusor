@@ -37,3 +37,4 @@ if (!isset($autoload) || !$autoload instanceof \auto_loader) {
 require_once dirname(__DIR__) . '/classes/http_route_hook_dispatcher.php';
 
 \frytimo\fusor\resources\classes\http_route_hook_dispatcher::dispatch_request_hooks($autoload, true);
+

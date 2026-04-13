@@ -4,6 +4,9 @@ namespace frytimo\fusor\resources\classes;
 
 use auto_loader;
 
+/**
+ * Fusor discovery.
+ */
 class fusor_discovery {
 	private const CACHE_KEY = 'fusor_discovery_registry';
 	private const CACHE_FILE = 'fusor_discovery_cache.php';
@@ -20,6 +23,12 @@ class fusor_discovery {
 		'methods' => [],
 	];
 
+	/**
+	 * Discover attributes.
+	 * @param mixed $auto_loader
+	 * @param mixed $force_refresh
+	 * @return void
+	 */
 	public static function discover_attributes(auto_loader $auto_loader, bool $force_refresh = false): void {
 		$source_mtime = self::get_source_mtime();
 		if (!$force_refresh && self::load_cache($source_mtime)) {

@@ -67,3 +67,4 @@ if (isset($autoload) && $autoload instanceof \auto_loader && !headers_sent()) {
 		});
 	}
 }
+

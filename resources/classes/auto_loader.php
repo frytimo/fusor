@@ -1222,6 +1222,11 @@ class auto_loader {
 		return 'public';
 	}
 
+	/**
+	 * Is namespace token.
+	 * @param mixed $token_id
+	 * @return bool
+	 */
 	private function is_namespace_token(int $token_id): bool {
 		$namespace_tokens = [T_STRING, T_NS_SEPARATOR];
 
@@ -1710,3 +1715,4 @@ class auto_loader {
 		return sys_get_temp_dir() . DIRECTORY_SEPARATOR . $file_name;
 	}
 }
+

@@ -32,3 +32,4 @@ if ($composer_autoloader_file !== null) {
 if ($is_preload_context) {
 	return;
 }
+

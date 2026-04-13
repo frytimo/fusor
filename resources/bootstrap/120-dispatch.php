@@ -8,3 +8,4 @@ global $autoload;
 if (isset($autoload) && $autoload instanceof \auto_loader) {
 	\frytimo\fusor\resources\classes\fusor_dispatcher::register_discovered_listeners($autoload);
 }
+

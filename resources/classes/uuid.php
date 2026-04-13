@@ -2,9 +2,17 @@
 
 namespace frytimo\fusor\resources\classes;
 
+/**
+ * Uuid.
+ */
 class uuid implements \Stringable {
 	private string $uuid;
 
+	/**
+	 * Construct.
+	 * @param mixed $uuid
+	 * @return mixed
+	 */
 	public function __construct(string $uuid = '') {
 		if (static::is_uuid($uuid))
 			$this->uuid = $uuid;
@@ -20,10 +28,19 @@ class uuid implements \Stringable {
 		}
 	}
 
+	/**
+	 * To String.
+	 * @return mixed
+	 */
 	public function __toString() {
 		return $this->uuid;
 	}
 
+	/**
+	 * Is uuid.
+	 * @param mixed $uuid
+	 * @return bool
+	 */
 	public static function is_uuid(string|self $uuid): bool {
 		$is_uuid = false;
 		if (gettype($uuid) == 'string' || $uuid instanceof self) {
@@ -39,6 +56,10 @@ class uuid implements \Stringable {
 		return $is_uuid;
 	}
 
+	/**
+	 * Fre.
+	 * @return mixed
+	 */
 	private static function fre() {
 		$uuid = trim(shell_exec("uuid -v 4"));
 		if (static::is_uuid($uuid)) {
@@ -50,10 +71,18 @@ class uuid implements \Stringable {
 		}
 	}
 
+	/**
+	 * Lin.
+	 * @return string
+	 */
 	private static function lin(): string {
 		return trim(file_get_contents('/proc/sys/kernel/random/uuid'));
 	}
 
+	/**
+	 * Win.
+	 * @return string
+	 */
 	private static function win(): string {
 		$uuid = trim(com_create_guid(), '{}');
 		if (static::is_uuid($uuid))
@@ -61,3 +90,4 @@ class uuid implements \Stringable {
 		throw new \Exception("The com_create_guid() function failed to create a uuid.");
 	}
 }
+

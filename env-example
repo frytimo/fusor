@@ -7,10 +7,16 @@
 
 [auto_loader]
 cache=true
-; Optional: override class scan root (FusionPBX project root).
-; Leave empty to auto-detect from directory structure.
-; scan_path=/var/www/fusionpbx
+scan_path.0 = '/resources/interfaces/*.php',
+scan_path.1 = '/resources/traits/*.php',
+scan_path.2 = '/resources/classes/*.php',
+scan_path.3 = '/resources/classes/*/*.php',
+scan_path.4 = '/*/*/resources/interfaces/*.php',
+scan_path.5 = '/*/*/resources/traits/*.php',
+scan_path.6 = '/*/*/resources/classes/*.php',
+scan_path.7 = '/*/*/resources/classes/*/*.php',
+scan_path.8 = '/core/authentication/resources/classes/plugins/*.php',
 
-; Enable this only for CLI smoke tests. Keep false in production.
+; Enable this only for CLI tests. Keep false in production.
 [http_route_hooks]
 allow_cli=false
