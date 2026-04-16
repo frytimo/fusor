@@ -85,12 +85,12 @@ The older lowercase namespace remains autoload-compatible during the transition 
 
 ## .ENV File
 
-For development, keep cache disabled in `app/fusor/.env`:
+The auto-loader now runs in-memory only.
 
-```ini
-[auto_loader]
-cache=false
-```
+- No APCu persistence is used by the auto-loader
+- No on-disk class or attribute cache files are written by the auto-loader
+- PHP opcache can still be used normally for compilation and preload
+- The older `cache=` toggle is retained only for backward compatibility and is ignored by the Fusor auto-loader
 
 Configurable scan paths:
 

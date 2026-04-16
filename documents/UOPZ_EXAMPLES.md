@@ -44,22 +44,23 @@ For autocomplete and better static inspection, Fusor now also provides:
 use Frytimo\Fusor\resources\attributes\on_method;
 use Frytimo\Fusor\resources\attributes\on_method_enter;
 use Frytimo\Fusor\resources\attributes\on_method_after;
+use Frytimo\Fusor\resources\classes\fusor_event;
 
 class my_hooks {
 
     #[on_method(target: 'my_service::calculate_total', event_name: 'enter')]
-    public static function trace_enter(array $context): void {
-        syslog(LOG_INFO, 'Entering ' . $context['target']);
+    public static function trace_enter(fusor_event $event): void {
+        syslog(LOG_INFO, 'Entering ' . $event->target);
     }
 
     #[on_method_enter(target: 'my_service::calculate_total')]
-    public static function trace_enter_autocomplete(array $context): void {
-        syslog(LOG_INFO, 'Entering via convenience attribute ' . $context['target']);
+    public static function trace_enter_autocomplete(fusor_event $event): void {
+        syslog(LOG_INFO, 'Entering via convenience attribute ' . $event->target());
     }
 
     #[on_method_after(target: 'my_service::format_value')]
-    public static function trace_exit(array $context): string {
-        return (string) $context['result'] . ' [hooked]';
+    public static function trace_exit(fusor_event $event): string {
+        return (string) $event->result . ' [hooked]';
     }
 }
 ```

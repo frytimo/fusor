@@ -51,5 +51,12 @@
 - env_settings
 - cache_file_path
 
+## Runtime behavior note
+
+The current auto-loader implementation is intentionally in-memory only.
+It rebuilds its internal class, interface, inheritance, trait, and attribute maps from source files for the request and no longer persists those maps to APCu or disk.
+
+Legacy compatibility methods such as `load_cache`, `update_cache`, and `clear_cache` still exist, but they no longer provide persistent caching.
+
 ## Source
 - ../resources/classes/auto_loader.php

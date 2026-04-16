@@ -104,56 +104,35 @@ class auto_loader {
 	 * @var array|null
 	 */
 	private $env_settings = null;
-	private bool $cache_enabled = true;
+	private bool $cache_enabled = false;
 
 	/**
-	 * Initializes the class and sets up caching mechanisms.
+	 * Initializes the class using in-memory state only.
 	 *
-	 * @param bool $cache If true, enables cache usage. Defaults to true.
+	 * @param bool $cache Retained for backward compatibility and ignored.
 	 */
 	public function __construct($cache = true) {
+		unset($cache);
 
-		//set if we can use RAM cache
-		$this->cache_enabled = filter_var($cache, FILTER_VALIDATE_BOOLEAN);
-		$this->apcu_enabled = $this->cache_enabled && function_exists('apcu_enabled') && apcu_enabled();
+		$this->cache_enabled = false;
+		$this->apcu_enabled = false;
+		$this->classes = [];
+		$this->interfaces = [];
+		$this->inheritance = [];
+		$this->traits = [];
+		$this->attributes = $this->default_attribute_map();
 
-		//set classes cache location
-		if (empty(self::$classes_file)) {
-			self::$classes_file = self::cache_file_path(self::CLASSES_FILE);
-		}
-
-		//set interface cache location
-		if (empty(self::$interfaces_file)) {
-			self::$interfaces_file = self::cache_file_path(self::INTERFACES_FILE);
-		}
-
-		//set inheritance cache location
-		if (empty(self::$inheritance_file)) {
-			self::$inheritance_file = self::cache_file_path(self::INHERITANCE_FILE);
-		}
-
-		//set attribute cache location
-		if (empty(self::$attributes_file)) {
-			self::$attributes_file = self::cache_file_path(self::ATTRIBUTES_FILE);
-		}
-
-		//classes must be loaded before this object is registered
-		if (!$this->cache_enabled || !$this->load_cache()) {
-			//cache miss so load them
-			$this->reload_classes();
-			if ($this->cache_enabled) {
-				//update the cache after loading classes array
-				$this->update_cache();
-			}
-		}
-		//register this object to load any unknown classes
+		$this->reload_classes();
 		spl_autoload_register([$this, 'loader']);
 	}
 
 	/**
-	 * Loads the class cache from various sources.
+	 * Legacy cache loader retained for compatibility.
 	 *
-	 * @return bool True if the cache is loaded successfully, false otherwise.
+	 * The auto-loader now operates in-memory only and does not read from APCu
+	 * or on-disk cache files.
+	 *
+	 * @return bool Always false so callers rebuild state from source files.
 	 */
 	public function load_cache(): bool {
 		$this->classes = [];
@@ -162,105 +141,7 @@ class auto_loader {
 		$this->traits = [];
 		$this->attributes = $this->default_attribute_map();
 
-		//check APCu cache version
-		$apcu_version_valid = false;
-		if ($this->apcu_enabled) {
-			$cached_version = apcu_fetch(self::CACHE_VERSION_KEY, $version_exists);
-			if ($version_exists && $cached_version === self::CACHE_VERSION) {
-				$apcu_version_valid = true;
-			} else if ($version_exists) {
-				//clear stale APCu cache
-				apcu_delete(self::CACHE_VERSION_KEY);
-				apcu_delete(self::CLASSES_KEY);
-				apcu_delete(self::INTERFACES_KEY);
-				apcu_delete(self::INHERITANCE_KEY);
-				apcu_delete(self::ATTRIBUTES_KEY);
-			}
-		}
-
-		//use apcu when available and version is valid
-		if ($this->apcu_enabled && $apcu_version_valid && apcu_exists(self::CLASSES_KEY)) {
-			$this->classes = apcu_fetch(self::CLASSES_KEY, $classes_cached);
-			$this->interfaces = apcu_fetch(self::INTERFACES_KEY, $interfaces_cached);
-			$this->inheritance = apcu_fetch(self::INHERITANCE_KEY, $inheritance_cached);
-			$this->attributes = apcu_fetch(self::ATTRIBUTES_KEY, $attributes_cached);
-			if (!$attributes_cached || !is_array($this->attributes)) {
-				$this->attributes = $this->default_attribute_map();
-			}
-			$this->rebuild_traits_from_classes();
-			//verify we got valid data
-			if ($classes_cached && $interfaces_cached && $inheritance_cached && !empty($this->classes)) {
-				return true;
-			}
-		}
-
-		//check file cache version and load if valid
-		$file_cache_valid = false;
-		if (file_exists(self::$classes_file)) {
-			$cached_data = include self::$classes_file;
-			//validate structure and version
-			if (is_array($cached_data) && isset($cached_data['version']) && $cached_data['version'] === self::CACHE_VERSION) {
-				$this->classes = $cached_data['classes'] ?? [];
-				$file_cache_valid = true;
-			} else {
-				//delete stale file cache
-				@unlink(self::$classes_file);
-			}
-		}
-
-		//do the same for interface to class mappings
-		if ($file_cache_valid && file_exists(self::$interfaces_file)) {
-			$cached_data = include self::$interfaces_file;
-			//validate structure and version
-			if (is_array($cached_data) && isset($cached_data['version']) && $cached_data['version'] === self::CACHE_VERSION) {
-				$this->interfaces = $cached_data['interfaces'] ?? [];
-			} else {
-				//delete stale file cache
-				@unlink(self::$interfaces_file);
-				$file_cache_valid = false;
-			}
-		}
-
-		//do the same for inheritance mappings
-		if ($file_cache_valid && file_exists(self::$inheritance_file)) {
-			$cached_data = include self::$inheritance_file;
-			//validate structure and version
-			if (is_array($cached_data) && isset($cached_data['version']) && $cached_data['version'] === self::CACHE_VERSION) {
-				$this->inheritance = $cached_data['inheritance'] ?? [];
-			} else {
-				//delete stale file cache
-				@unlink(self::$inheritance_file);
-				$file_cache_valid = false;
-			}
-		}
-
-		//do the same for attributes mappings
-		if ($file_cache_valid && file_exists(self::$attributes_file)) {
-			$cached_data = include self::$attributes_file;
-			//validate structure and version
-			if (is_array($cached_data) && isset($cached_data['version']) && $cached_data['version'] === self::CACHE_VERSION) {
-				$cached_attributes = $cached_data['attributes'] ?? [];
-				$this->attributes = is_array($cached_attributes) ? $cached_attributes : $this->default_attribute_map();
-			} else {
-				//delete stale file cache
-				@unlink(self::$attributes_file);
-				$file_cache_valid = false;
-			}
-		}
-
-		//populate apcu cache from file cache if available and valid
-		if ($this->apcu_enabled && $file_cache_valid && !empty($this->classes)) {
-			apcu_store(self::CACHE_VERSION_KEY, self::CACHE_VERSION);
-			apcu_store(self::CLASSES_KEY, $this->classes);
-			apcu_store(self::INTERFACES_KEY, $this->interfaces);
-			apcu_store(self::INHERITANCE_KEY, $this->inheritance);
-			apcu_store(self::ATTRIBUTES_KEY, $this->attributes);
-		}
-
-		$this->rebuild_traits_from_classes();
-
-		//return true when we have classes and false if the array is still empty
-		return ($file_cache_valid && !empty($this->classes) && !empty($this->interfaces));
+		return false;
 	}
 
 	/**
@@ -410,88 +291,18 @@ class auto_loader {
 	}
 
 	/**
-	 * Updates the cache by writing the classes and interfaces to files on disk.
+	 * Legacy cache writer retained for compatibility.
 	 *
-	 * @return bool True if the update was successful, false otherwise
+	 * The auto-loader no longer persists state to APCu or disk. State is rebuilt
+	 * directly from source files and then held in internal arrays for the life of
+	 * the request.
+	 *
+	 * @return bool True when in-memory state is populated.
 	 */
 	public function update_cache(): bool {
-		//guard against writing an empty file
-		if (empty($this->classes)) {
-			return false;
-		}
+		$this->rebuild_traits_from_classes();
 
-		//update RAM cache when available
-		if ($this->apcu_enabled) {
-			apcu_store(self::CACHE_VERSION_KEY, self::CACHE_VERSION);
-			apcu_store(self::CLASSES_KEY, $this->classes);
-			apcu_store(self::INTERFACES_KEY, $this->interfaces);
-			apcu_store(self::INHERITANCE_KEY, $this->inheritance);
-			apcu_store(self::ATTRIBUTES_KEY, $this->attributes);
-		}
-
-		//prepare versioned data structure for classes
-		$classes_data = [
-			'version' => self::CACHE_VERSION,
-			'classes' => $this->classes,
-		];
-		$classes_array = var_export($classes_data, true);
-
-		//put the array in a form that it can be loaded directly to an array
-		$class_result = file_put_contents(self::$classes_file, "<?php\n return " . $classes_array . ";\n");
-		if ($class_result === false) {
-			//file failed to save - send error to syslog when debugging
-			$error_array = error_get_last();
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
-
-		//prepare versioned data structure for interfaces
-		$interfaces_data = [
-			'version' => self::CACHE_VERSION,
-			'interfaces' => $this->interfaces,
-		];
-		$interfaces_array = var_export($interfaces_data, true);
-
-		//put the array in a form that it can be loaded directly to an array
-		$interface_result = file_put_contents(self::$interfaces_file, "<?php\n return " . $interfaces_array . ";\n");
-		if ($interface_result === false) {
-			//file failed to save - send error to syslog when debugging
-			$error_array = error_get_last();
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
-
-		//prepare versioned data structure for inheritance
-		$inheritance_data = [
-			'version' => self::CACHE_VERSION,
-			'inheritance' => $this->inheritance,
-		];
-		$inheritance_array = var_export($inheritance_data, true);
-
-		//put the array in a form that it can be loaded directly to an array
-		$inheritance_result = file_put_contents(self::$inheritance_file, "<?php\n return " . $inheritance_array . ";\n");
-		if ($inheritance_result === false) {
-			//file failed to save - send error to syslog when debugging
-			$error_array = error_get_last();
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
-
-		//prepare versioned data structure for attributes
-		$attributes_data = [
-			'version' => self::CACHE_VERSION,
-			'attributes' => $this->attributes,
-		];
-		$attributes_array = var_export($attributes_data, true);
-
-		//put the array in a form that it can be loaded directly to an array
-		$attribute_result = file_put_contents(self::$attributes_file, "<?php\n return " . $attributes_array . ";\n");
-		if ($attribute_result === false) {
-			//file failed to save - send error to syslog when debugging
-			$error_array = error_get_last();
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
-
-		$result = ($class_result && $interface_result && $inheritance_result && $attribute_result);
-
-		return $result;
+		return !empty($this->classes);
 	}
 
 	/**
@@ -509,97 +320,25 @@ class auto_loader {
 	}
 
 	/**
-	 * Main method used to update internal state by clearing cache, reloading classes and updating cache.
+	 * Rebuild internal in-memory state from source files.
 	 *
 	 * @return void
-	 * @see \auto_loader::clear_cache()
-	 * @see \auto_loader::reload_classes()
-	 * @see \auto_loader::update_cache()
 	 */
 	public function update() {
-		self::clear_cache();
 		$this->reload_classes();
-		if ($this->cache_enabled) {
-			$this->update_cache();
-		}
+		$this->rebuild_traits_from_classes();
 	}
 
 	/**
-	 * Clears the cache of stored classes and interfaces.
+	 * Legacy cache clear retained for compatibility.
+	 *
+	 * Persistent auto-loader caches have been removed, so there is nothing to
+	 * clear beyond the current process lifetime.
 	 *
 	 * @return void
 	 */
 	public static function clear_cache() {
-
-		//check for apcu cache
-		if (function_exists('apcu_enabled') && apcu_enabled()) {
-			apcu_delete(self::CACHE_VERSION_KEY);
-			apcu_delete(self::CLASSES_KEY);
-			apcu_delete(self::INTERFACES_KEY);
-			apcu_delete(self::INHERITANCE_KEY);
-			apcu_delete(self::ATTRIBUTES_KEY);
-		}
-
-		//set default file
-		if (empty(self::$classes_file)) {
-			self::$classes_file = self::cache_file_path(self::CLASSES_FILE);
-		}
-
-		//set file to clear
-		$classes_file = self::$classes_file;
-
-		//remove the file when it exists
-		if (file_exists($classes_file)) {
-			@unlink($classes_file);
-			$error_array = error_get_last();
-			//send to syslog when debugging with either environment variable or debug in the url
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
-
-		if (empty(self::$interfaces_file)) {
-			self::$interfaces_file = self::cache_file_path(self::INTERFACES_FILE);
-		}
-
-		//set interfaces file to clear
-		$interfaces_file = self::$interfaces_file;
-
-		//remove the file when it exists
-		if (file_exists($interfaces_file)) {
-			@unlink($interfaces_file);
-			$error_array = error_get_last();
-			//send to syslog when debugging with either environment variable or debug in the url
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
-
-		if (empty(self::$inheritance_file)) {
-			self::$inheritance_file = self::cache_file_path(self::INHERITANCE_FILE);
-		}
-
-		//set inheritance file to clear
-		$inheritance_file = self::$inheritance_file;
-
-		//remove the file when it exists
-		if (file_exists($inheritance_file)) {
-			@unlink($inheritance_file);
-			$error_array = error_get_last();
-			//send to syslog when debugging with either environment variable or debug in the url
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
-
-		if (empty(self::$attributes_file)) {
-			self::$attributes_file = self::cache_file_path(self::ATTRIBUTES_FILE);
-		}
-
-		//set attribute file to clear
-		$attributes_file = self::$attributes_file;
-
-		//remove the file when it exists
-		if (file_exists($attributes_file)) {
-			@unlink($attributes_file);
-			$error_array = error_get_last();
-			//send to syslog when debugging with either environment variable or debug in the url
-			self::log(LOG_WARNING, $error_array['message'] ?? '');
-		}
+		// no-op: auto_loader now keeps only in-memory arrays for the request.
 	}
 
 	/**

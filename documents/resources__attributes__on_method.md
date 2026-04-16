@@ -37,17 +37,18 @@ Convenience wrappers for autocomplete and code inspection:
 
 ```php
 use Frytimo\Fusor\resources\attributes\on_method;
+use Frytimo\Fusor\resources\classes\fusor_event;
 
 class my_runtime_hooks {
 
     #[on_method(target: 'my_service::calculate_total', event_name: 'enter')]
-    public static function trace_enter(array $context): void {
-        syslog(LOG_INFO, '[my_runtime_hooks] entering ' . $context['target']);
+    public static function trace_enter(fusor_event $event): void {
+        syslog(LOG_INFO, '[my_runtime_hooks] entering ' . $event->target);
     }
 
     #[on_method(target: 'my_service::format_value', event_name: 'exit')]
-    public static function decorate_result(array $context): string {
-        return (string) $context['result'] . ' [hooked]';
+    public static function decorate_result(fusor_event $event): string {
+        return (string) $event->result . ' [hooked]';
     }
 }
 ```
@@ -56,6 +57,7 @@ class my_runtime_hooks {
 
 - `enter` runs before the original target executes.
 - `exit` uses a wrapper so the original return value can be inspected or replaced.
+- Hook handlers receive a `fusor_event` object. Use `$event->target` or `$event->target()` to inspect the hooked target.
 - If uopz is missing or broken, Fusor skips the wiring and logs to syslog.
 
 ## Source

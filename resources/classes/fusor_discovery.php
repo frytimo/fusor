@@ -30,10 +30,7 @@ class fusor_discovery {
 	 * @return void
 	 */
 	public static function discover_attributes(auto_loader $auto_loader, bool $force_refresh = false): void {
-		$source_mtime = self::get_source_mtime();
-		if (!$force_refresh && self::load_cache($source_mtime)) {
-			return;
-		}
+		unset($force_refresh);
 
 		self::$registry = [
 			'all' => [],
@@ -44,7 +41,6 @@ class fusor_discovery {
 		if (!method_exists($auto_loader, 'get_attributes')) {
 			// Keep startup compatible when the global auto_loader implementation
 			// does not yet expose attribute metadata helpers.
-			self::store_cache($source_mtime);
 			return;
 		}
 
@@ -74,7 +70,6 @@ class fusor_discovery {
 			}
 		}
 
-		self::store_cache($source_mtime);
 	}
 
 	/**
@@ -156,31 +151,8 @@ class fusor_discovery {
 	 * @return bool
 	 */
 	private static function load_cache(int $source_mtime): bool {
-		if (self::is_apcu_enabled()) {
-			$cached_payload = apcu_fetch(self::CACHE_KEY, $exists);
-			if ($exists && self::is_valid_cache_payload($cached_payload, $source_mtime)) {
-				self::$registry = $cached_payload['registry'];
-				return true;
-			}
-		}
-
-		$file_path = self::get_cache_file_path();
-		if (!file_exists($file_path)) {
-			return false;
-		}
-
-		$cached_payload = include $file_path;
-		if (!self::is_valid_cache_payload($cached_payload, $source_mtime)) {
-			@unlink($file_path);
-			return false;
-		}
-
-		self::$registry = $cached_payload['registry'];
-		if (self::is_apcu_enabled()) {
-			apcu_store(self::CACHE_KEY, $cached_payload);
-		}
-
-		return true;
+		unset($source_mtime);
+		return false;
 	}
 
 	/**
@@ -191,19 +163,7 @@ class fusor_discovery {
 	 * @return void
 	 */
 	private static function store_cache(int $source_mtime): void {
-		$payload = [
-			'version' => self::CACHE_VERSION,
-			'source_mtime' => $source_mtime,
-			'registry' => self::$registry,
-		];
-
-		if (self::is_apcu_enabled()) {
-			apcu_store(self::CACHE_KEY, $payload);
-		}
-
-		$file_path = self::get_cache_file_path();
-		$file_data = var_export($payload, true);
-		@file_put_contents($file_path, "<?php\n return " . $file_data . ";\n");
+		unset($source_mtime);
 	}
 
 	/**
@@ -212,14 +172,11 @@ class fusor_discovery {
 	 * @return void
 	 */
 	public static function clear_cache(): void {
-		if (self::is_apcu_enabled()) {
-			apcu_delete(self::CACHE_KEY);
-		}
-
-		$file_path = self::get_cache_file_path();
-		if (file_exists($file_path)) {
-			@unlink($file_path);
-		}
+		self::$registry = [
+			'all' => [],
+			'by_target_type' => [],
+			'methods' => [],
+		];
 	}
 
 	/**

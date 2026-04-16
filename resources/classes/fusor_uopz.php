@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Frytimo\Fusor\resources\classes;
 
 use Frytimo\Fusor\resources\attributes\on_method;
-use Frytimo\Fusor\resources\attributes\override_constant;
 use Frytimo\Fusor\resources\attributes\runtime_function;
 
 /**
@@ -22,11 +21,21 @@ class fusor_uopz {
 
 	/**
 	 * Discover and register all uopz-backed attributes.
+	 *
+	 * Hooks (uopz_set_hook) and return wrappers (uopz_set_return) do NOT
+	 * persist across FPM request cycles — they must be re-registered on
+	 * every request.  Runtime functions (uopz_add_function) DO persist, so
+	 * they use function_exists/method_exists guards to avoid fatal errors.
 	 */
 	public static function register_discovered_hooks(\auto_loader $autoload, bool $force_refresh = false): int {
 		require_once dirname(__DIR__) . '/attributes/on.php';
 		require_once dirname(__DIR__) . '/attributes/on_method.php';
-		require_once dirname(__DIR__) . '/attributes/override_constant.php';
+		require_once dirname(__DIR__) . '/attributes/on_method_enter.php';
+		require_once dirname(__DIR__) . '/attributes/on_method_exit.php';
+		require_once dirname(__DIR__) . '/attributes/on_method_before.php';
+		require_once dirname(__DIR__) . '/attributes/on_method_after.php';
+		require_once dirname(__DIR__) . '/attributes/method_around.php';
+		require_once dirname(__DIR__) . '/attributes/method_replace.php';
 		require_once dirname(__DIR__) . '/attributes/runtime_function.php';
 
 		if ($force_refresh && method_exists($autoload, 'update')) {
@@ -37,7 +46,6 @@ class fusor_uopz {
 
 		$registered = 0;
 		$registered += self::register_on_method_attributes();
-		$registered += self::register_override_constant_attributes();
 		$registered += self::register_runtime_function_attributes();
 
 		return $registered;
@@ -79,60 +87,6 @@ class fusor_uopz {
 	}
 
 	/**
-	 * Apply constant overrides.
-	 */
-	private static function register_override_constant_attributes(): int {
-		$registered = 0;
-
-		foreach (self::get_handler_reflections() as $handler) {
-			foreach ($handler['reflection']->getAttributes(override_constant::class, \ReflectionAttribute::IS_INSTANCEOF) as $reflection_attribute) {
-				try {
-					$attribute = $reflection_attribute->newInstance();
-				} catch (\Throwable $exception) {
-					self::log_once('attr:override_constant:' . ($handler['name'] ?? 'unknown'), 'Failed to instantiate override_constant attribute for ' . ($handler['name'] ?? 'unknown') . ': ' . $exception->getMessage());
-					continue;
-				}
-
-				if (!self::ensure_extension_available('override_constant', $attribute->target, ['uopz_redefine'])) {
-					continue;
-				}
-
-				$registration_key = 'constant:' . $attribute->target;
-				if (isset(self::$installed[$registration_key])) {
-					continue;
-				}
-
-				$value = $attribute->value;
-				if ($value === null) {
-					$value = self::invoke_handler($handler['callable'], [
-						'phase' => 'constant_override',
-						'target' => $attribute->target,
-					]);
-				}
-
-				try {
-					$result = $attribute->is_class_constant
-						? self::call_uopz('uopz_redefine', $attribute->class_name, $attribute->constant_name, $value)
-						: self::call_uopz('uopz_redefine', $attribute->constant_name, $value);
-				} catch (\Throwable $exception) {
-					self::log_once($registration_key . ':exception', 'Failed to redefine constant ' . $attribute->target . ': ' . $exception->getMessage());
-					continue;
-				}
-
-				if ($result === false) {
-					self::log_once($registration_key . ':failed', 'uopz_redefine returned false for constant ' . $attribute->target . '.');
-					continue;
-				}
-
-				self::$installed[$registration_key] = true;
-				$registered++;
-			}
-		}
-
-		return $registered;
-	}
-
-	/**
 	 * Add or remove runtime functions.
 	 */
 	private static function register_runtime_function_attributes(): int {
@@ -158,11 +112,40 @@ class fusor_uopz {
 
 				try {
 					if ($attribute->action === 'add') {
+						// uopz_add_function throws if the function already exists
+						// (FPM worker reuse).  Check first and skip if present.
+						if ($attribute->is_method) {
+							if (method_exists($attribute->class_name, $attribute->function_name)) {
+								self::$installed[$registration_key] = true;
+								$registered++;
+								continue;
+							}
+						} else {
+							if (function_exists($attribute->function_name)) {
+								self::$installed[$registration_key] = true;
+								$registered++;
+								continue;
+							}
+						}
 						$closure = \Closure::fromCallable($handler['callable']);
 						$result = $attribute->is_method
 							? self::call_uopz('uopz_add_function', $attribute->class_name, $attribute->function_name, $closure)
 							: self::call_uopz('uopz_add_function', $attribute->function_name, $closure);
 					} else {
+						// uopz_del_function throws if the function doesn't exist.
+						if ($attribute->is_method) {
+							if (!method_exists($attribute->class_name, $attribute->function_name)) {
+								self::$installed[$registration_key] = true;
+								$registered++;
+								continue;
+							}
+						} else {
+							if (!function_exists($attribute->function_name)) {
+								self::$installed[$registration_key] = true;
+								$registered++;
+								continue;
+							}
+						}
 						$result = $attribute->is_method
 							? self::call_uopz('uopz_del_function', $attribute->class_name, $attribute->function_name)
 							: self::call_uopz('uopz_del_function', $attribute->function_name);
@@ -367,7 +350,16 @@ class fusor_uopz {
 			}
 
 			$attribute_name = strtolower((string) ($entry['attribute_short'] ?? $entry['attribute'] ?? ''));
-			if (!in_array($attribute_name, ['on_method', 'override_constant', 'runtime_function'], true)) {
+			if (!in_array($attribute_name, [
+				'on_method',
+				'on_method_enter',
+				'on_method_exit',
+				'on_method_before',
+				'on_method_after',
+				'method_around',
+				'method_replace',
+				'runtime_function',
+			], true)) {
 				continue;
 			}
 
@@ -445,13 +437,45 @@ class fusor_uopz {
 				? new \ReflectionMethod((string) $handler[0], (string) $handler[1])
 				: new \ReflectionFunction($handler);
 
-			return $reflection->getNumberOfParameters() === 0
-				? call_user_func($handler)
-				: call_user_func($handler, $context);
+			if ($reflection->getNumberOfParameters() === 0) {
+				return call_user_func($handler);
+			}
+
+			$event = self::build_event($context);
+			$parameters = $reflection->getParameters();
+			$parameter = $parameters[0] ?? null;
+			$type = $parameter?->getType();
+
+			if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+				$type_name = ltrim($type->getName(), '\\');
+				if (is_a($type_name, fusor_event::class, true)) {
+					return call_user_func($handler, $event);
+				}
+			}
+
+			if ($type instanceof \ReflectionNamedType && $type->getName() === 'array') {
+				return call_user_func($handler, $context);
+			}
+
+			return call_user_func($handler, $event);
 		} catch (\Throwable $exception) {
 			self::log_once('handler_failure:' . self::callable_key($handler), 'uopz handler ' . self::callable_key($handler) . ' failed: ' . $exception->getMessage());
 			return $context['result'] ?? null;
 		}
+	}
+
+	/**
+	 * Build a fusor event from uopz context.
+	 */
+	private static function build_event(array $context): fusor_event {
+		$phase = trim((string) ($context['phase'] ?? 'enter'));
+		$target = trim((string) ($context['target'] ?? ''));
+		$name = 'on_method/' . ($phase !== '' ? $phase : 'enter');
+		if ($target !== '') {
+			$name .= '/' . $target;
+		}
+
+		return new fusor_event($name, new uuid(), $context);
 	}
 
 	/**
