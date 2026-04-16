@@ -86,7 +86,7 @@ Accepted method signatures:
 public static function my_hook(fusor_event $event): void { }
 
 // Receive raw context array (uopz hooks)
-public static function my_hook(array $context): void { }
+public static function my_hook(fusor_event $event): void { }
 
 // No parameters (fire-and-forget)
 public static function my_hook(): void { }

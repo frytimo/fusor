@@ -8,7 +8,7 @@ Generated file-level references for Fusor source files, classes, and functions.
 
 See [examples/](./examples/) for complete, working PHP files that demonstrate
 every Fusor attribute. Each file can be copied into `app/my_app/resources/classes/`
-and discovered automatically.
+and discovered automatically after PHP-FPM has been restarted.
 
 | Example | Attributes | Description |
 |---------|-----------|-------------|

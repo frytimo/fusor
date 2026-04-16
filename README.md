@@ -7,7 +7,7 @@ It supports four main extension patterns:
 - Render lifecycle hooks for web pages (for example, `before_render_login`)
 - HTTP lifecycle hooks via PHP attributes (`#[http_get]`, `#[http_post]`)
 - Switch event listeners handled by the Fusor service (`#[on(event_name: 'switch.*')]`)
-- Optional uopz-backed runtime auto-wiring for functions, methods, constants, and runtime helper functions
+- Optional uopz-backed runtime auto-wiring for ~~constants~~, functions, methods, constants, and runtime helper functions
 
 ## Requirements
 
@@ -16,6 +16,7 @@ It supports four main extension patterns:
 - Composer (dependencies for `app/fusor`)
 - PHP opcache extension
 - PHP uopz extension (optional, only required for runtime hook and override features)
+- Restarting PHP-FPM
 
 ## Directory Overview
 
@@ -28,22 +29,31 @@ It supports four main extension patterns:
 
 ## Quick Start
 
+### Git Clone Method
+
+1. Clone the Fusor repository
+
+```bash
+cd /var/www/fusionpbx/app
+git clone https://github.com/frytimo/fusor.git fusor
+```
+
 ### Local app layout inside FusionPBX
 
-1. Install Fusor dependencies:
+2. Install Fusor dependencies:
 
 ```bash
 cd /var/www/fusionpbx/app/fusor
 composer install
 ```
 
-2. Configure PHP-FPM to autoload Fusor:
+3. Configure PHP-FPM to autoload Fusor:
 
 ```
 PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;"); sed -i "s#;opcache.preload=#opcache.preload=/var/www/fusionpbx/app/fusor/bootstrap.php#g" /etc/php/$PHP_VERSION/fpm/php.ini; systemctl restart php$PHP_VERSION-fpm
 ```
 
-3. Configure Fusor:
+4. Configure Fusor:
 
 ```bash
 cd /var/www/fusionpbx/app/fusor
@@ -75,22 +85,16 @@ vendor/bin/fusor --help
 
 ## Namespace Policy
 
-The canonical public namespace is now:
+The canonical public namespace is:
 
 ```php
 use Frytimo\Fusor\resources\classes\fusor_event;
 ```
-
-The older lowercase namespace remains autoload-compatible during the transition so existing integrations do not break immediately.
+The mixed case is needed for the Composer author and project name and then the FusionPBX strict snake_case requirement.
 
 ## .ENV File
 
-The auto-loader now runs in-memory only.
-
-- No APCu persistence is used by the auto-loader
-- No on-disk class or attribute cache files are written by the auto-loader
-- PHP opcache can still be used normally for compilation and preload
-- The older `cache=` toggle is retained only for backward compatibility and is ignored by the Fusor auto-loader
+The auto-loader runs in-memory cached by the PHP opcache extension. PHP opcache is required for the project to work properly as it requires the preload offered by opcache
 
 Configurable scan paths:
 
