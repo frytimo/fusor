@@ -44,7 +44,6 @@ php /var/www/fusionpbx/tests/fusor_uopz_smoke.php
 
 Current verified behaviors in this workspace:
 
-- constant override is active
 - exit hook decoration is active
 - runtime function registration is active
 - syslog logging is active
@@ -53,7 +52,6 @@ Current verified behaviors in this workspace:
 
 - `app/fusor_example/resources/classes/fusor_uopz_demo.php`
 - `app/fusor/resources/attributes/on_method.php`
-- `app/fusor/resources/attributes/override_constant.php`
 - `app/fusor/resources/attributes/runtime_function.php`
 
 ## Source

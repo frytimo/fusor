@@ -22,7 +22,6 @@ and discovered automatically.
 | [08_method_around.php](./examples/08_method_around.php) | `#[method_around]` | Wrap methods with before+after logic (uopz) |
 | [09_method_replace.php](./examples/09_method_replace.php) | `#[method_replace]` | Replace method return values (uopz) |
 | [10_runtime_function.php](./examples/10_runtime_function.php) | `#[runtime_function]` | Add/remove global functions at runtime (uopz) |
-| [11_override_constant.php](./examples/11_override_constant.php) | `#[override_constant]` | Override class/global constants (uopz) |
 | [12_login_hooks.php](./examples/12_login_hooks.php) | Multiple | Complete login page customization |
 | [13_logout_hooks.php](./examples/13_logout_hooks.php) | `#[http_get]` | Intercept logout, redirect, audit log |
 | [14_page_render_hooks.php](./examples/14_page_render_hooks.php) | `#[on]` | Inject HTML into any page before/after render |
@@ -48,7 +47,6 @@ and discovered automatically.
 - [resources/attributes/on_method_after.php](./resources__attributes__on_method_after.md)
 - [resources/attributes/method_around.php](./resources__attributes__method_around.md)
 - [resources/attributes/method_replace.php](./resources__attributes__method_replace.md)
-- [resources/attributes/override_constant.php](./resources__attributes__override_constant.md)
 - [resources/attributes/runtime_function.php](./resources__attributes__runtime_function.md)
 - [resources/bootstrap/100-autoloader.php](./resources__bootstrap__100-autoloader.md)
 - [resources/bootstrap/110-discovery.php](./resources__bootstrap__110-discovery.md)
@@ -79,6 +77,5 @@ and discovered automatically.
 New example coverage is available for:
 
 - `on_method` entry and exit hooks
-- `override_constant` constant mutation
 - `runtime_function` helper registration
 - the uopz runtime manager bootstrap flow

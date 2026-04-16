@@ -32,7 +32,6 @@ it automatically — no registration code required.
 | [08_method_around.php](08_method_around.php) | `#[method_around]` | Wrap a method call with before+after logic (uopz) |
 | [09_method_replace.php](09_method_replace.php) | `#[method_replace]` | Completely replace a method's behavior (uopz) |
 | [10_runtime_function.php](10_runtime_function.php) | `#[runtime_function]` | Add or remove global functions at runtime (uopz) |
-| [11_override_constant.php](11_override_constant.php) | `#[override_constant]` | Change class or global constant values (uopz) |
 | [12_login_hooks.php](12_login_hooks.php) | `#[http_get]`, `#[http_post]`, `#[on_method_exit]` | Complete login page customization |
 | [13_logout_hooks.php](13_logout_hooks.php) | `#[http_get]` | Intercept logout and redirect |
 | [14_page_render_hooks.php](14_page_render_hooks.php) | `#[on]` | Inject HTML before/after any page renders |
@@ -47,7 +46,7 @@ it automatically — no registration code required.
 
 - **PHP 8.2+** (PHP 8.4 recommended)
 - **Fusor** installed at `app/fusor/`
-- **uopz** extension required for: `on_method_enter`, `on_method_exit`, `on_method_before`, `on_method_after`, `method_around`, `method_replace`, `runtime_function`, `override_constant`
+- **uopz** extension required for: `on_method_enter`, `on_method_exit`, `on_method_before`, `on_method_after`, `method_around`, `method_replace`, `runtime_function`
 - **No uopz needed for**: `on`, `http_get`, `http_post` (these use the event dispatcher only)
 
 ## How auto-discovery works
@@ -72,8 +71,7 @@ on                          ← base event listener (no uopz)
 │   ├── on_method_after     ← alias for exit
 │   ├── method_around       ← wraps before + after
 │   └── method_replace      ← completely replaces
-├── runtime_function        ← add/remove runtime functions
-└── override_constant       ← change constant values
+└── runtime_function        ← add/remove runtime functions
 ```
 
 ## Method signature requirements

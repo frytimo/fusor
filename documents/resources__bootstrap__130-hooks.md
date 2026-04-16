@@ -25,7 +25,6 @@ This bootstrap stage performs the optional runtime auto-wiring pass for uopz-bac
 ## Related examples
 
 - `resources/attributes/on_method.php`
-- `resources/attributes/override_constant.php`
 - `resources/attributes/runtime_function.php`
 - `tests/fusor_uopz_smoke.php`
 

@@ -65,20 +65,6 @@ class my_hooks {
 }
 ```
 
-## Constant override example
-
-```php
-use Frytimo\Fusor\resources\attributes\override_constant;
-
-class my_overrides {
-
-    #[override_constant(target: 'my_service::TIMEOUT', value: 45)]
-    public static function override_timeout(): int {
-        return 45;
-    }
-}
-```
-
 ## Runtime function add/remove examples
 
 ```php
@@ -99,7 +85,7 @@ class my_runtime_functions {
 
 ## Smoke test
 
-Run the local smoke test to see the hook, constant override, and runtime function behavior:
+Run the local smoke test to see the hook and runtime function behavior:
 
 ```bash
 php /var/www/fusionpbx/tests/fusor_uopz_smoke.php
@@ -112,6 +98,5 @@ Useful related files:
 
 - [app/fusor/resources/classes/fusor_uopz.php](app/fusor/resources/classes/fusor_uopz.php)
 - [app/fusor/resources/attributes/on_method.php](app/fusor/resources/attributes/on_method.php)
-- [app/fusor/resources/attributes/override_constant.php](app/fusor/resources/attributes/override_constant.php)
 - [app/fusor/resources/attributes/runtime_function.php](app/fusor/resources/attributes/runtime_function.php)
 - [tests/fusor_uopz_smoke.php](tests/fusor_uopz_smoke.php)

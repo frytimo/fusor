@@ -28,7 +28,6 @@ class my_listener {
 ## Related runtime attributes
 
 - `on_method` for optional uopz-backed function and method hooks
-- `override_constant` for constant overrides
 - `runtime_function` for adding or removing helper functions at runtime
 
 ## Source
