@@ -2,26 +2,58 @@
 
 ## Summary
 - Classes/Interfaces/Traits: http_request_url
-- Purpose: shared League URI-backed request URL adapter for Fusor HTTP lifecycle events
+- Functions/Methods: 43
 
-## What it provides
-- normalized request path handling
-- safe and unsafe query parameter access
-- safe and unsafe POST or input body access
-- URL mutation helpers for query parameters
-- a stable object exposed as `$event->url` on HTTP Fusor events
+## Classes
+- http_request_url
 
-## Common methods
-- `get_path()`
-- `get_query_param($key, $default = null, $unsafe = false)`
-- `get($key, $default = null, $unsafe = false)`
-- `post($key, $default = null, $unsafe = false)`
-- `has($key)`
-- `has_query_param($key)`
-- `has_post($key)`
-- `has_parameters()`
-- `build_relative()`
-- `build_absolute()`
+## Functions and Methods
+- __construct
+- from_request
+- parse_uri
+- normalize_path
+- get_original_url
+- get_scheme
+- get_host
+- get_port
+- get_path
+- get_fragment
+- set_query
+- set_query_param
+- set
+- unset_query_param
+- delete
+- get_query
+- get_query_array
+- get_query_param
+- has_parameters
+- has_query_param
+- get
+- request
+- has
+- load_post
+- post
+- has_post
+- get_post_array
+- get_input_array
+- get_request_array
+- get_body_array
+- load_input
+- input
+- has_input
+- load_request
+- add_query_filter
+- build_relative
+- build_absolute
+- __toString
+- import_request_params
+- filter_query_modifier
+- default_query_filter
+- sanitize_value
+- get_request_array_for_source
+
+## Purpose
+Shared League URI-backed request URL adapter for Fusor HTTP lifecycle events.
 
 ## Example
 

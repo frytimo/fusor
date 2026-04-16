@@ -1,13 +1,17 @@
 # resources/fusor
 
 ## Summary
-- Classes/Interfaces/Traits: fusor_cli
-- Functions/Methods: 14
+- Classes/Interfaces/Traits: fusor_cli, command_option
+- Functions/Methods: 17 (1 standalone + 13 fusor_cli + 3 command_option)
+
+## Standalone Functions
+- fusor_resolve_dir
 
 ## Classes
 - fusor_cli
+- command_option
 
-## Functions and Methods
+## fusor_cli Methods
 - run
 - parse_command_options
 - base_command_options
@@ -21,6 +25,11 @@
 - get_long_options
 - get_callbacks_for_option
 - call_function
+
+## command_option Methods
+- __construct
+- new
+- to_array
 
 ## Source
 - ../resources/fusor

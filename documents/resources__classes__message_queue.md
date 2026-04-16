@@ -2,7 +2,7 @@
 
 ## Summary
 - Classes/Interfaces/Traits: message_queue
-- Functions/Methods: 4
+- Functions/Methods: 5
 
 ## Classes
 - message_queue
@@ -12,6 +12,7 @@
 - queue
 - enqueue
 - remove
+- empty
 
 ## Source
 - ../resources/classes/message_queue.php

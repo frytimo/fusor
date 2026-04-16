@@ -2,13 +2,13 @@
 
 ## Summary
 - Classes/Interfaces/Traits: None
-- Functions/Methods: None
+- Functions/Methods: 1
 
 ## Classes
 - None
 
 ## Functions and Methods
-- None
+- dispatch
 
 ## Source
 - ../resources/bootstrap/120-dispatch.php

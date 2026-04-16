@@ -4,6 +4,35 @@ Generated file-level references for Fusor source files, classes, and functions.
 
 > Keep this section synchronized with the real Fusor attribute and bootstrap files whenever the project changes.
 
+## Working Examples
+
+See [examples/](./examples/) for complete, working PHP files that demonstrate
+every Fusor attribute. Each file can be copied into `app/my_app/resources/classes/`
+and discovered automatically.
+
+| Example | Attributes | Description |
+|---------|-----------|-------------|
+| [01_on_event_listener.php](./examples/01_on_event_listener.php) | `#[on]` | Named event listeners for page render events |
+| [02_http_get_hook.php](./examples/02_http_get_hook.php) | `#[http_get]` | Hook GET requests (redirect, access control, logging) |
+| [03_http_post_hook.php](./examples/03_http_post_hook.php) | `#[http_post]` | Hook POST submissions (validation, logging) |
+| [04_on_method_enter.php](./examples/04_on_method_enter.php) | `#[on_method_enter]` | Pre-execution hooks (uopz) |
+| [05_on_method_exit.php](./examples/05_on_method_exit.php) | `#[on_method_exit]` | Post-execution hooks with return value access (uopz) |
+| [06_on_method_before.php](./examples/06_on_method_before.php) | `#[on_method_before]` | Alias for enter (uopz) |
+| [07_on_method_after.php](./examples/07_on_method_after.php) | `#[on_method_after]` | Alias for exit (uopz) |
+| [08_method_around.php](./examples/08_method_around.php) | `#[method_around]` | Wrap methods with before+after logic (uopz) |
+| [09_method_replace.php](./examples/09_method_replace.php) | `#[method_replace]` | Replace method return values (uopz) |
+| [10_runtime_function.php](./examples/10_runtime_function.php) | `#[runtime_function]` | Add/remove global functions at runtime (uopz) |
+| [11_override_constant.php](./examples/11_override_constant.php) | `#[override_constant]` | Override class/global constants (uopz) |
+| [12_login_hooks.php](./examples/12_login_hooks.php) | Multiple | Complete login page customization |
+| [13_logout_hooks.php](./examples/13_logout_hooks.php) | `#[http_get]` | Intercept logout, redirect, audit log |
+| [14_page_render_hooks.php](./examples/14_page_render_hooks.php) | `#[on]` | Inject HTML into any page before/after render |
+| [15_bridges_copy_hook.php](./examples/15_bridges_copy_hook.php) | `#[on_method_enter]`, `#[on_method_exit]` | Hook copy/delete/toggle on bridges |
+| [16_custom_sort_method.php](./examples/16_custom_sort_method.php) | `#[runtime_function]` | Custom sort functions at runtime |
+| [17_multi_hook_class.php](./examples/17_multi_hook_class.php) | Multiple | Single class with many hooks across FusionPBX |
+| [18_freeswitch_events.php](./examples/18_freeswitch_events.php) | `#[on]` | FreeSWITCH event socket listeners |
+| [19_wildcard_event_listener.php](./examples/19_wildcard_event_listener.php) | `#[on]` | Wildcard/glob event patterns |
+| [20_dashboard_widget_hooks.php](./examples/20_dashboard_widget_hooks.php) | `#[http_get]`, `#[on]` | Dashboard page modification |
+
 ## Files
 - [UOPZ_EXAMPLES.md](./UOPZ_EXAMPLES.md)
 - [bootstrap.php](./bootstrap.md)

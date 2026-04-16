@@ -7,6 +7,24 @@
 ## Classes
 - fusor_uopz
 
+## Functions and Methods
+- register_discovered_hooks
+- register_on_method_attributes
+- register_runtime_function_attributes
+- install_enter_hook
+- install_return_wrapper
+- resolve_target
+- get_handler_reflections
+- invoke_handler
+- build_event
+- invoke_original_target
+- unset_return_wrapper
+- restore_return_wrapper
+- ensure_extension_available
+- callable_key
+- call_uopz
+- log_once
+
 ## Key Responsibilities
 - Discover uopz-backed attributes from the Fusor registry
 - Install entry hooks and exit wrappers

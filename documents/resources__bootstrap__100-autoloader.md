@@ -2,13 +2,13 @@
 
 ## Summary
 - Classes/Interfaces/Traits: None
-- Functions/Methods: None
+- Functions/Methods: 1
 
 ## Classes
 - None
 
 ## Functions and Methods
-- None
+- load_composer_autoloader
 
 ## Source
 - ../resources/bootstrap/100-autoloader.php

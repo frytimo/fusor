@@ -2,7 +2,7 @@
 
 ## Summary
 - Classes/Interfaces/Traits: auto_loader
-- Functions/Methods: 42
+- Functions/Methods: 35
 
 ## Classes
 - auto_loader
@@ -42,13 +42,6 @@
 - get_interfaces
 - get_traits
 - loader
-- project_path
-- project_path_from_env
-- class_search_paths
-- configured_search_patterns_from_env
-- normalize_search_pattern
-- cache_enabled_from_env
-- env_settings
 - cache_file_path
 
 ## Runtime behavior note
