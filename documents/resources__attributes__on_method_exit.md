@@ -12,7 +12,11 @@
 
 ## Purpose
 
-Autocomplete-friendly convenience attribute for an `exit`-phase method hook.
+Runs your handler **after** the target function or method has executed. The handler receives a `fusor_event` containing both the original call arguments and the return value (`$event->result`). If the handler returns a non-null value, that value **replaces** the original return value seen by the caller.
+
+Use this to inspect results, transform output, log return values, or conditionally override what a function returns. Requires `uopz_set_return` internally, so it only works on **public static methods** and **global functions** (not instance methods).
+
+This is a convenience wrapper around `#[on_method(target: '...', event_name: 'exit')]` that removes the need to specify the phase.
 
 ## Example
 

@@ -13,25 +13,37 @@
 
 ## Purpose
 
-Provides optional uopz-backed auto-wiring for an existing function or public static method.
+Intercepts calls to any existing PHP function or public static method at runtime using the uopz extension. When the target function or method is called anywhere in the application, Fusor transparently runs your hook handler at the specified phase of execution. The original caller is unaware that a hook is active.
 
-Supported names:
+This allows plugin authors to observe, modify, or completely replace the behavior of any function or method in FusionPBX without editing the original source code. Hooks are registered automatically during bootstrap when the auto-loader discovers this attribute on a class method.
 
-- `enter`
-- `exit`
-- `before` (alias of `enter`)
-- `after` (alias of `exit`)
-- `around`
-- `replace`
+### Phases
 
-Convenience wrappers for autocomplete and code inspection:
+| Phase | Behavior | Original runs? | Can change return value? |
+|-------|----------|----------------|-------------------------|
+| `enter` | Runs **before** the original executes. Receives the arguments but not the result. Uses `uopz_set_hook`. | Yes, immediately after | No |
+| `exit` | Runs **after** the original executes. Receives both arguments and the return value. Uses `uopz_set_return` wrapper. | Yes, first | Yes — return a value from the handler to replace it |
+| `before` | Alias of `enter` | Yes | No |
+| `after` | Alias of `exit` | Yes | Yes |
+| `around` | Wraps the original call. The original executes inside the wrapper and the handler receives the result. Uses `uopz_set_return` wrapper. | Yes, inside wrapper | Yes |
+| `replace` | Same wrapper mechanism as `around`. The original executes first, then the handler can return a completely different value. Uses `uopz_set_return` wrapper. | Yes, inside wrapper | Yes |
 
-- `on_method_enter`
-- `on_method_exit`
-- `on_method_before`
-- `on_method_after`
-- `method_around`
-- `method_replace`
+### Requirements
+
+- The **uopz** PHP extension must be loaded. If missing, hooks are silently skipped and a syslog warning is written.
+- `exit`/`after`/`around`/`replace` phases only work on **public static methods** and **global functions** (instance method wrappers are not supported).
+- `enter`/`before` works on any function or method (static or instance).
+
+### Convenience attributes
+
+These sub-classes lock in a specific phase so you don't need to pass `event_name`:
+
+- `on_method_enter` — pre-execution hook
+- `on_method_exit` — post-execution hook with return value access
+- `on_method_before` — alias of `on_method_enter`
+- `on_method_after` — alias of `on_method_exit`
+- `method_around` — wraps the original call
+- `method_replace` — wraps the original call (same as around)
 
 ## Example
 
