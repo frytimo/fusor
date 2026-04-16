@@ -10,7 +10,7 @@ use auto_loader;
 class fusor_discovery {
 	private const CACHE_KEY = 'fusor_discovery_registry';
 	private const CACHE_FILE = 'fusor_discovery_cache.php';
-	private const CACHE_VERSION = 5;
+	private const CACHE_VERSION = 6;
 
 	/**
 	 * Generic attribute discovery registry.

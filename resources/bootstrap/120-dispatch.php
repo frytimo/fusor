@@ -17,7 +17,12 @@
  * @return void
  */
 function dispatch() {
-	$page = basename($_SERVER['SCRIPT_NAME'], '.php');
+	$script_name = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+	if ($script_name === '') {
+		return;
+	}
+
+	$page = basename($script_name, '.php');
 	$html_output = '';
 	$before_event = "before_render_$page";
 	$after_event = "after_render_$page";

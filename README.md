@@ -2,11 +2,12 @@
 
 Fusor is an attribute-driven extension layer for FusionPBX. It lets you register event listeners and HTTP lifecycle hooks without patching core files.
 
-It supports three main extension patterns:
+It supports four main extension patterns:
 
 - Render lifecycle hooks for web pages (for example, `before_render_login`)
 - HTTP lifecycle hooks via PHP attributes (`#[http_get]`, `#[http_post]`)
 - Switch event listeners handled by the Fusor service (`#[on(event_name: 'switch.*')]`)
+- Optional uopz-backed runtime auto-wiring for functions, methods, constants, and runtime helper functions
 
 ## Requirements
 
@@ -14,12 +15,13 @@ It supports three main extension patterns:
 - PHP 8.2+
 - Composer (dependencies for `app/fusor`)
 - PHP opcache extension
+- PHP uopz extension (optional, only required for runtime hook and override features)
 
 ## Directory Overview
 
 - `app/fusor/bootstrap.php`: loads Fusor and all app bootstrap files (`app/*/*/resources/bootstrap/*.php`) in lexical order
-- `app/fusor/resources/attributes/`: hook attributes (`on`, `http_get`, `http_post`)
-- `app/fusor/resources/classes/`: dispatcher and discovery internals
+- `app/fusor/resources/attributes/`: hook attributes (`on`, `http_get`, `http_post`, `on_method`, `override_constant`, `runtime_function`)
+- `app/fusor/resources/classes/`: dispatcher, discovery, and optional uopz internals
 - `app/fusor/resources/fusor`: Fusor CLI utility (cache refresh/version/help)
 - `app/fusor/resources/service/fusor.php`: service entrypoint for switch event processing
 - `app/fusor/env-example`: sample Fusor `.env` config
@@ -147,6 +149,7 @@ Fusor uses the enhanced FusionPBX `auto_loader` metadata to discover attributes 
 - `#[on(...)]` methods are registered with priority support (higher priority runs first).
 - Wildcards are supported using `fnmatch` semantics (for example, `switch.*`).
 - HTTP lifecycle hooks are dispatched once per request for `GET` and `POST`.
+- When uopz is installed, Fusor can also auto-wire function and method entry or exit hooks, constant overrides, and runtime helper functions.
 
 ### 3) Request Lifecycle Hooks
 
@@ -228,6 +231,89 @@ HTTP lifecycle event payload includes:
 - `url` (shared League URI-backed adapter with safe and unsafe access helpers)
 
 When `stage: 'after'` listeners are used, payload also includes `html` by reference so response output can be inspected or changed.
+
+### `#[on_method(target: string, event_name: string = 'enter', priority: int = 0)]`
+
+Use this optional attribute when the PHP uopz extension is available and you want Fusor to auto-wire a hook onto an existing function or static method.
+
+Supported phase names:
+
+- `enter`
+- `exit`
+- `before` → alias of `enter`
+- `after` → alias of `exit`
+- `around`
+- `replace`
+
+Notes:
+
+- `enter` uses the uopz hook path and runs before the target executes.
+- `exit` currently uses a wrapper approach and runs after the original target returns.
+- The first implementation is intended for global functions and public static methods.
+- If uopz is not loaded or not fully available, the request continues normally and Fusor writes a syslog error for the developer.
+
+Example:
+
+```php
+use Frytimo\Fusor\resources\attributes\on_method;
+
+class my_runtime_hooks {
+
+    #[on_method(target: 'my_service::calculate_total', event_name: 'enter')]
+    public static function trace_enter(array $context): void {
+        syslog(LOG_INFO, '[my_runtime_hooks] entering ' . $context['target']);
+    }
+
+    #[on_method(target: 'my_service::format_value', event_name: 'exit')]
+    public static function decorate_result(array $context): string {
+        return (string) $context['result'] . ' [hooked]';
+    }
+}
+```
+
+### `#[override_constant(target: string, value: mixed = null, priority: int = 0)]`
+
+Use this optional attribute to redefine a global or class constant when uopz is available.
+
+Example:
+
+```php
+use Frytimo\Fusor\resources\attributes\override_constant;
+
+class my_constant_overrides {
+
+    #[override_constant(target: 'my_service::TIMEOUT', value: 45)]
+    public static function timeout_override(): int {
+        return 45;
+    }
+}
+```
+
+### `#[runtime_function(target: string, action: string = 'add', priority: int = 0)]`
+
+Use this optional attribute to add or remove a runtime helper function using uopz.
+
+Supported action names:
+
+- `add`
+- `load` → alias of `add`
+- `remove`
+- `unload` → alias of `remove`
+- `delete` → alias of `remove`
+
+Example:
+
+```php
+use Frytimo\Fusor\resources\attributes\runtime_function;
+
+class my_runtime_functions {
+
+    #[runtime_function(target: 'my_debug_helper', action: 'add')]
+    public static function my_debug_helper(string $name = 'FusionPBX'): string {
+        return 'Hello ' . $name;
+    }
+}
+```
 
 ### Shared URL Adapter
 
@@ -405,6 +491,24 @@ Useful options:
 Systemd unit template exists at:
 
 - `app/fusor/resources/service/debian-fusor.service`
+
+## Uopz Runtime Notes
+
+- uopz support is optional and fail-open by design.
+- If the attribute is present but the extension is missing, disabled, or incomplete, Fusor skips the runtime wiring and writes an error to syslog.
+- This behavior is compatible with opcache and preload, and the bootstrap guards avoid request fatals when request variables are not yet populated.
+- Additional examples are documented in [app/fusor/documents/UOPZ_EXAMPLES.md](app/fusor/documents/UOPZ_EXAMPLES.md).
+- For local validation, run:
+
+```bash
+php /var/www/fusionpbx/tests/fusor_uopz_smoke.php
+```
+
+The current verified smoke output shows:
+
+- constant override working
+- exit hook decoration working
+- runtime function registration working
 
 ## Troubleshooting
 

@@ -1055,7 +1055,7 @@ class auto_loader {
 		}
 
 		$content = trim($buffer);
-		$inside = trim($content, '#[] \t\n\r\0\x0B');
+		$inside = trim($content, "#[] \t\n\r\0\x0B");
 		$parts = $this->split_top_level_csv($inside);
 
 		$result = [];

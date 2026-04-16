@@ -2,13 +2,19 @@
 
 Generated file-level references for Fusor source files, classes, and functions.
 
+> Keep this section synchronized with the real Fusor attribute and bootstrap files whenever the project changes.
+
 ## Files
+- [UOPZ_EXAMPLES.md](./UOPZ_EXAMPLES.md)
 - [bootstrap.php](./bootstrap.md)
 - [resources/fusor](./resources__fusor.md)
-- [resources/attributes/get.php](./resources__attributes__get.md)
+- [resources/attributes/http.php](./resources__attributes__http.md)
+- [resources/attributes/http_get.php](./resources__attributes__http_get.md)
+- [resources/attributes/http_post.php](./resources__attributes__http_post.md)
 - [resources/attributes/on.php](./resources__attributes__on.md)
-- [resources/attributes/post.php](./resources__attributes__post.md)
-- [resources/attributes/route.php](./resources__attributes__route.md)
+- [resources/attributes/on_method.php](./resources__attributes__on_method.md)
+- [resources/attributes/override_constant.php](./resources__attributes__override_constant.md)
+- [resources/attributes/runtime_function.php](./resources__attributes__runtime_function.md)
 - [resources/bootstrap/100-autoloader.php](./resources__bootstrap__100-autoloader.md)
 - [resources/bootstrap/110-discovery.php](./resources__bootstrap__110-discovery.md)
 - [resources/bootstrap/120-dispatch.php](./resources__bootstrap__120-dispatch.md)
@@ -24,6 +30,7 @@ Generated file-level references for Fusor source files, classes, and functions.
 - [resources/classes/fusor_event.php](./resources__classes__fusor_event.md)
 - [resources/classes/fusor_event_service.php](./resources__classes__fusor_event_service.md)
 - [resources/classes/fusor_service.php](./resources__classes__fusor_service.md)
+- [resources/classes/fusor_uopz.php](./resources__classes__fusor_uopz.md)
 - [resources/classes/http_route_hook_dispatcher.php](./resources__classes__http_route_hook_dispatcher.md)
 - [resources/classes/message_queue.php](./resources__classes__message_queue.md)
 - [resources/classes/missed_call_webhook_listener.php](./resources__classes__missed_call_webhook_listener.md)
@@ -31,3 +38,12 @@ Generated file-level references for Fusor source files, classes, and functions.
 - [resources/interfaces/event_relay_listener.php](./resources__interfaces__event_relay_listener.md)
 - [resources/interfaces/switch_listener.php](./resources__interfaces__switch_listener.md)
 - [resources/service/fusor.php](./resources__service__fusor.md)
+
+## Runtime hook examples
+
+New example coverage is available for:
+
+- `on_method` entry and exit hooks
+- `override_constant` constant mutation
+- `runtime_function` helper registration
+- the uopz runtime manager bootstrap flow
