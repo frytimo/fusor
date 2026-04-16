@@ -20,7 +20,7 @@ It supports four main extension patterns:
 ## Directory Overview
 
 - `app/fusor/bootstrap.php`: loads Fusor and all app bootstrap files (`app/*/*/resources/bootstrap/*.php`) in lexical order
-- `app/fusor/resources/attributes/`: hook attributes (`on`, `http_get`, `http_post`, `on_method`, `override_constant`, `runtime_function`)
+- `app/fusor/resources/attributes/`: hook attributes (`on`, `http_get`, `http_post`, `on_method`, `on_method_enter`, `on_method_exit`, `on_method_before`, `on_method_after`, `method_around`, `method_replace`, `override_constant`, `runtime_function`)
 - `app/fusor/resources/classes/`: dispatcher, discovery, and optional uopz internals
 - `app/fusor/resources/fusor`: Fusor CLI utility (cache refresh/version/help)
 - `app/fusor/resources/service/fusor.php`: service entrypoint for switch event processing
@@ -245,6 +245,15 @@ Supported phase names:
 - `around`
 - `replace`
 
+Autocomplete-friendly convenience attributes are also available:
+
+- `on_method_enter`
+- `on_method_exit`
+- `on_method_before`
+- `on_method_after`
+- `method_around`
+- `method_replace`
+
 Notes:
 
 - `enter` uses the uopz hook path and runs before the target executes.
@@ -252,10 +261,12 @@ Notes:
 - The first implementation is intended for global functions and public static methods.
 - If uopz is not loaded or not fully available, the request continues normally and Fusor writes a syslog error for the developer.
 
-Example:
+Examples:
 
 ```php
 use Frytimo\Fusor\resources\attributes\on_method;
+use Frytimo\Fusor\resources\attributes\on_method_enter;
+use Frytimo\Fusor\resources\attributes\on_method_after;
 
 class my_runtime_hooks {
 
@@ -264,7 +275,12 @@ class my_runtime_hooks {
         syslog(LOG_INFO, '[my_runtime_hooks] entering ' . $context['target']);
     }
 
-    #[on_method(target: 'my_service::format_value', event_name: 'exit')]
+    #[on_method_enter(target: 'my_service::calculate_total')]
+    public static function trace_enter_autocomplete(array $context): void {
+        syslog(LOG_INFO, '[my_runtime_hooks] enter alias ' . $context['target']);
+    }
+
+    #[on_method_after(target: 'my_service::format_value')]
     public static function decorate_result(array $context): string {
         return (string) $context['result'] . ' [hooked]';
     }

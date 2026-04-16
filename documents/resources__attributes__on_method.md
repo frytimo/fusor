@@ -24,6 +24,15 @@ Supported names:
 - `around`
 - `replace`
 
+Convenience wrappers for autocomplete and code inspection:
+
+- `on_method_enter`
+- `on_method_exit`
+- `on_method_before`
+- `on_method_after`
+- `method_around`
+- `method_replace`
+
 ## Example
 
 ```php

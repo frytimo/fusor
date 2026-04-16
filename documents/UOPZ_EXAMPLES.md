@@ -19,6 +19,17 @@ Current verified state in this repository:
 - `around`
 - `replace`
 
+## Convenience attributes
+
+For autocomplete and better static inspection, Fusor now also provides:
+
+- `on_method_enter`
+- `on_method_exit`
+- `on_method_before`
+- `on_method_after`
+- `method_around`
+- `method_replace`
+
 ## Notes on behavior
 
 - `enter` is the native pre-execution hook path.
@@ -31,6 +42,8 @@ Current verified state in this repository:
 
 ```php
 use Frytimo\Fusor\resources\attributes\on_method;
+use Frytimo\Fusor\resources\attributes\on_method_enter;
+use Frytimo\Fusor\resources\attributes\on_method_after;
 
 class my_hooks {
 
@@ -39,7 +52,12 @@ class my_hooks {
         syslog(LOG_INFO, 'Entering ' . $context['target']);
     }
 
-    #[on_method(target: 'my_service::format_value', event_name: 'exit')]
+    #[on_method_enter(target: 'my_service::calculate_total')]
+    public static function trace_enter_autocomplete(array $context): void {
+        syslog(LOG_INFO, 'Entering via convenience attribute ' . $context['target']);
+    }
+
+    #[on_method_after(target: 'my_service::format_value')]
     public static function trace_exit(array $context): string {
         return (string) $context['result'] . ' [hooked]';
     }
