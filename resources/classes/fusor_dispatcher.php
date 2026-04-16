@@ -21,8 +21,42 @@ class fusor_dispatcher {
 			return;
 		}
 
-		self::$listeners[$event_name][$priority][] = $listener;
+		$listener_key = self::get_listener_key($listener);
+		self::$listeners[$event_name][$priority][$listener_key] = $listener;
 		krsort(self::$listeners[$event_name], SORT_NUMERIC);
+	}
+
+	/**
+	 * Build a stable listener key so different classes sharing the same method
+	 * name do not collide in listener storage.
+	 * @param mixed $listener
+	 * @return string
+	 */
+	private static function get_listener_key(callable $listener): string {
+		if (is_string($listener)) {
+			return 'fn:' . $listener;
+		}
+
+		if (is_array($listener)) {
+			$target = $listener[0] ?? '';
+			$method = (string) ($listener[1] ?? '');
+
+			if (is_object($target)) {
+				return 'obj:' . get_class($target) . '#' . spl_object_id($target) . '::' . $method;
+			}
+
+			return 'cls:' . ltrim((string) $target, '\\') . '::' . $method;
+		}
+
+		if ($listener instanceof \Closure) {
+			return 'closure:' . spl_object_id($listener);
+		}
+
+		if (is_object($listener)) {
+			return 'invokable:' . get_class($listener) . '#' . spl_object_id($listener);
+		}
+
+		return 'listener:' . md5(serialize($listener));
 	}
 
 	/**
@@ -45,7 +79,7 @@ class fusor_dispatcher {
 		}
 
 		foreach (self::$listeners as $registered_event => $prioritized_listeners) {
-			if (!fnmatch($registered_event, $event_name)) {
+			if (!self::event_matches($registered_event, $event_name)) {
 				continue;
 			}
 
@@ -57,6 +91,69 @@ class fusor_dispatcher {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Determine whether a registered event pattern matches a runtime event name.
+	 * A trailing /* in the registered pattern also matches the base path itself.
+	 * @param mixed $registered_event
+	 * @param mixed $event_name
+	 * @return bool
+	 */
+	private static function event_matches(string $registered_event, string $event_name): bool {
+		if (fnmatch($registered_event, $event_name)) {
+			return true;
+		}
+
+		// Support `/**/` as "zero or more directories" by also checking a
+		// collapsed variant where the double-star segment is removed.
+		if (strpos($registered_event, '/**/') !== false) {
+			$collapsed_pattern = str_replace('/**/', '/', $registered_event);
+			if (fnmatch($collapsed_pattern, $event_name)) {
+				return true;
+			}
+		}
+
+		if (!str_ends_with($registered_event, '/*')) {
+			return false;
+		}
+
+		if (!self::is_directory_wildcard_base_match_enabled()) {
+			return false;
+		}
+
+		$base_pattern = substr($registered_event, 0, -2);
+		$base_pattern = $base_pattern !== '/' ? rtrim($base_pattern, '/') : '/';
+		$normalized_event = $event_name !== '/' ? rtrim($event_name, '/') : '/';
+
+		return $normalized_event === $base_pattern;
+	}
+
+	/**
+	 * Returns whether `.../*` listeners should also match the base directory
+	 * path with no trailing segment.
+	 *
+	 * Config key: [fusor_dispatcher] match_directory_on_wildcard=true|false
+	 *
+	 * @return bool
+	 */
+	private static function is_directory_wildcard_base_match_enabled(): bool {
+		$value = $_ENV['fusor_dispatcher']['match_directory_on_wildcard'] ?? true;
+
+		if (is_bool($value)) {
+			return $value;
+		}
+
+		if (is_int($value)) {
+			return $value !== 0;
+		}
+
+		$parsed = filter_var((string) $value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+		if ($parsed === null) {
+			return true;
+		}
+
+		return $parsed;
 	}
 
 	/**
@@ -82,7 +179,7 @@ class fusor_dispatcher {
 
 		fusor_discovery::discover_attributes($autoload, $force_refresh);
 
-		$methods = fusor_discovery::get_methods('on');
+		$methods = fusor_discovery::get_methods();
 		$registered = 0;
 		$processed_methods = [];
 
@@ -231,7 +328,7 @@ class fusor_dispatcher {
 	public static function dispatch(fusor_event $event): void {
 		$event_name = $event->name;
 		foreach (self::$listeners as $registered_event => $prioritized_listeners) {
-			if (fnmatch($registered_event, $event_name)) {
+			if (self::event_matches($registered_event, $event_name)) {
 				foreach ($prioritized_listeners as $priority => $listeners) {
 					foreach ($listeners as $listener) {
 						try {

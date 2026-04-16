@@ -20,3 +20,8 @@ scan_path.8 = '/core/authentication/resources/classes/plugins/*.php',
 ; Enable this only for CLI tests. Keep false in production.
 [http_route_hooks]
 allow_cli=false
+
+[fusor_dispatcher]
+; When true, a listener pattern ending in '/*' also matches the directory path
+; itself (for example, '/core/dashboard/*' also matches '/core/dashboard').
+match_directory_on_wildcard=true

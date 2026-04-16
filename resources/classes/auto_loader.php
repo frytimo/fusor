@@ -109,13 +109,13 @@ class auto_loader {
 	/**
 	 * Initializes the class and sets up caching mechanisms.
 	 *
-	 * @param bool $disable_cache If true, disables cache usage. Defaults to false.
+	 * @param bool $cache If true, enables cache usage. Defaults to true.
 	 */
-	public function __construct($disable_cache = false) {
+	public function __construct($cache = true) {
 
 		//set if we can use RAM cache
-		$this->apcu_enabled = function_exists('apcu_enabled') && apcu_enabled();
-		$this->cache_enabled = !$disable_cache && $this->cache_enabled_from_env();
+		$this->cache_enabled = filter_var($cache, FILTER_VALIDATE_BOOLEAN);
+		$this->apcu_enabled = $this->cache_enabled && function_exists('apcu_enabled') && apcu_enabled();
 
 		//set classes cache location
 		if (empty(self::$classes_file)) {
@@ -274,15 +274,13 @@ class auto_loader {
 	 */
 	public function reload_classes() {
 		//set project path using magic dir constant
-		$project_path = $this->project_path();
-
-		//build the array of all locations for classes in specific order
-		$search_path = $this->class_search_paths($project_path);
+		$project_path = defined('PROJECT_ROOT_DIR') ? PROJECT_ROOT_DIR : dirname(__DIR__, 4);
+		$scan_paths = $_ENV['auto_loader']['scan_path'] ?? [];
 
 		//get all php files for each path
 		$files = [];
-		foreach ($search_path as $path) {
-			$files = array_merge($files, glob($path));
+		foreach ($scan_paths as $path) {
+			$files = array_merge($files, glob($project_path . $path));
 		}
 
 		//reset the current array
@@ -378,7 +376,7 @@ class auto_loader {
 		}
 
 		//scan explicit attribute metadata files (IonCube compatible)
-		$this->reload_attributes($project_path);
+		$this->reload_attributes($scan_paths);
 	}
 
 	/**
@@ -796,19 +794,14 @@ class auto_loader {
 	/**
 	 * Scans all attribute metadata files and populates the in-memory index.
 	 *
-	 * @param string $project_path
+	 * @param array $scan_paths
 	 *
 	 * @return void
 	 */
-	private function reload_attributes(string $project_path): void {
-		$attribute_search_path = [
-			$project_path . '/resources/attributes/*.php',
-			$project_path . '/*/*/resources/attributes/*.php',
-			$project_path . '/*/*/resources/attributes/*/*.php',
-		];
+	private function reload_attributes(array $scan_paths): void {
 
 		$attribute_files = [];
-		foreach ($attribute_search_path as $path) {
+		foreach ($scan_paths as $path) {
 			$attribute_files = array_merge($attribute_files, glob($path));
 		}
 
@@ -1431,23 +1424,26 @@ class auto_loader {
 		//cache miss
 		self::log(LOG_WARNING, "class '$class_name' not found in cache");
 
-		//set project path using magic dir constant
-		$project_path = $this->project_path();
-
 		//build the search path array
-		$search_path = [];
-		foreach ($this->class_search_paths($project_path, $class_name) as $path) {
-			$search_path[] = glob($path);
+		$project_path = defined('PROJECT_ROOT_DIR') ? PROJECT_ROOT_DIR : dirname(__DIR__, 4);
+		$search_paths = $_ENV['auto_loader']['scan_path'] ?? [];
+		foreach ($search_paths as $path) {
+			$files = glob($project_path . $path);
+			if (!empty($files)) {
+				break;
+			}
 		}
 
 		//fix class names in the plugins directory prefixed with 'plugin_'
 		if (str_starts_with($class_name, 'plugin_')) {
 			$class_name = substr($class_name, 7);
 		}
-		$search_path[] = glob($project_path . "/core/authentication/resources/classes/plugins/" . $class_name . ".php");
+		$file = glob($project_path . "/core/authentication/resources/classes/plugins/" . $class_name . ".php");
 
 		//collapse all entries to only the matched entry
-		$matches = array_filter($search_path);
+		$matches = array_filter($files, function($file) use ($class_name) {
+			return is_array($file) && count($file) > 0 && basename($file[0], '.php') === $class_name;
+		});
 		if (!empty($matches)) {
 			$path = array_pop($matches)[0];
 
@@ -1471,238 +1467,6 @@ class auto_loader {
 
 		//return boolean
 		return false;
-	}
-
-	/**
-	 * Resolves the FusionPBX project root directory.
-	 *
-	 * @return string
-	 */
-	private function project_path(): string {
-		$configured_project_path = $this->project_path_from_env();
-		if ($configured_project_path !== null) {
-			return $configured_project_path;
-		}
-
-		$candidate = dirname(__DIR__, 4);
-		if (is_dir($candidate . '/resources/classes')) {
-			return $candidate;
-		}
-
-		return dirname(__DIR__, 2);
-	}
-
-	/**
-	 * Resolves the optional class scan root from app/fusor/.env.
-	 *
-	 * Supported keys:
-	 * [auto_loader] scan_path=/path/to/fusionpbx
-	 * [classes] scan_path=/path/to/fusionpbx
-	 *
-	 * @return string|null
-	 */
-	private function project_path_from_env(): ?string {
-		$env = $this->env_settings();
-		$value = $env['auto_loader']['scan_path']
-			?? ($env['classes']['scan_path'] ?? null)
-			?? ($env['auto_loader']['project_path'] ?? ($env['classes']['project_path'] ?? null));
-
-		if (is_array($value)) {
-			return null;
-		}
-
-		if (!is_string($value)) {
-			return null;
-		}
-
-		$path = rtrim(trim($value), '/');
-		if ($path === '') {
-			return null;
-		}
-
-		if (is_dir($path . '/resources/classes')) {
-			return $path;
-		}
-
-		self::log(LOG_WARNING, "invalid .env scan_path '$path' (expected FusionPBX root containing resources/classes)");
-		return null;
-	}
-
-	/**
-	 * Builds class discovery search paths from env config or defaults.
-	 *
-	 * Supported config:
-	 * [auto_loader]
-	 * scan_path.0=/resources/interfaces/*.php
-	 * scan_path.1=/resources/traits/*.php
-	 * ...
-	 *
-	 * @param string $project_path
-	 * @param string $class_name Optional class to target one-file lookups
-	 *
-	 * @return array
-	 */
-	private function class_search_paths(string $project_path, string $class_name = ''): array {
-		$patterns = $this->configured_search_patterns_from_env();
-		if (empty($patterns)) {
-			$patterns = [
-				'/resources/interfaces/*.php',
-				'/resources/traits/*.php',
-				'/resources/classes/*.php',
-				'/resources/classes/*/*.php',
-				'/*/*/resources/interfaces/*.php',
-				'/*/*/resources/traits/*.php',
-				'/*/*/resources/classes/*.php',
-				'/*/*/resources/classes/*/*.php',
-				'/core/authentication/resources/classes/plugins/*.php',
-			];
-		}
-
-		$search_paths = [];
-		$normalized_root = rtrim($project_path, '/');
-		foreach ($patterns as $pattern) {
-			$relative_pattern = $this->normalize_search_pattern($pattern);
-			if ($relative_pattern === '') {
-				continue;
-			}
-
-			$resolved_pattern = $relative_pattern;
-			if ($class_name !== '') {
-				$resolved_pattern = preg_replace('/\*\.php$/', $class_name . '.php', $relative_pattern) ?? $relative_pattern;
-			}
-
-			$search_paths[] = $normalized_root . $resolved_pattern;
-		}
-
-		return array_values(array_unique($search_paths));
-	}
-
-	/**
-	 * Reads indexed scan_path.* patterns from app/fusor/.env.
-	 *
-	 * @return array
-	 */
-	private function configured_search_patterns_from_env(): array {
-		$env = $this->env_settings();
-		$settings = $env['auto_loader'] ?? [];
-		if (!is_array($settings)) {
-			return [];
-		}
-
-		$patterns = [];
-		foreach ($settings as $key => $value) {
-			if (!is_string($key) || !is_string($value)) {
-				continue;
-			}
-
-			if (strpos($key, 'scan_path.') !== 0 && strpos($key, 'project_path.') !== 0) {
-				continue;
-			}
-
-			$prefix = strpos($key, 'scan_path.') === 0 ? 'scan_path.' : 'project_path.';
-			$index = (int) substr($key, strlen($prefix));
-			$normalized = $this->normalize_search_pattern($value);
-			if ($normalized === '') {
-				continue;
-			}
-
-			$patterns[$index] = $normalized;
-		}
-
-		if (empty($patterns)) {
-			return [];
-		}
-
-		ksort($patterns);
-		return array_values($patterns);
-	}
-
-	/**
-	 * Normalizes one configured search pattern.
-	 *
-	 * @param string $pattern
-	 *
-	 * @return string
-	 */
-	private function normalize_search_pattern(string $pattern): string {
-		$normalized = trim($pattern);
-		$normalized = rtrim($normalized, ',');
-		$normalized = trim($normalized, " \n\r\t\v\x00\"'");
-		if ($normalized === '') {
-			return '';
-		}
-
-		if (!str_starts_with($normalized, '/')) {
-			$normalized = '/' . $normalized;
-		}
-
-		return $normalized;
-	}
-
-	/**
-	 * Determines whether class cache is enabled via app/fusor/.env.
-	 *
-	 * Expected format:
-	 * [auto_loader]
-	 * cache=true|false
-	 *
-	 * @return bool
-	 */
-	private function cache_enabled_from_env(): bool {
-		$env = $this->env_settings();
-
-		$value = $env['auto_loader']['cache'] ?? null;
-		if ($value === null) {
-			return true;
-		}
-
-		$normalized = strtolower(trim((string) $value));
-		if ($normalized === 'false' || $normalized === '0' || $normalized === 'off' || $normalized === 'no') {
-			return false;
-		}
-
-		if ($normalized === 'true' || $normalized === '1' || $normalized === 'on' || $normalized === 'yes') {
-			return true;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Reads app/fusor/.env settings once per request.
-	 *
-	 * @return array
-	 */
-	private function env_settings(): array {
-		if (is_array($this->env_settings)) {
-			return $this->env_settings;
-		}
-
-		$fusor_path = dirname(__DIR__, 2);
-		$env_loader_file = $fusor_path . '/resources/classes/env_loader.php';
-
-		if (!class_exists('env_loader', false) && is_file($env_loader_file)) {
-			require_once $env_loader_file;
-		}
-
-		if (class_exists('env_loader', false)) {
-			env_loader::load_env_file($fusor_path);
-			env_loader::set_env();
-			$env = env_loader::get_settings();
-			$this->env_settings = is_array($env) ? $env : [];
-			return $this->env_settings;
-		}
-
-		$env_file = $fusor_path . '/.env';
-		if (!is_file($env_file)) {
-			$this->env_settings = [];
-			return $this->env_settings;
-		}
-
-		$env = @parse_ini_file($env_file, true, INI_SCANNER_RAW);
-		$this->env_settings = is_array($env) ? $env : [];
-
-		return $this->env_settings;
 	}
 
 	/**

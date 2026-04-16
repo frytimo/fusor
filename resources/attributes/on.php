@@ -5,13 +5,11 @@ namespace frytimo\fusor\resources\attributes;
 use \Attribute;
 
 /**
- * On.
+ * The on attribute allows fusor to act upon an attribute that is tagged on a method
+ * @package frytimo\fusor\resources\attributes
  */
 #[Attribute(Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
-/**
- * On.
- */
-final readonly class on {
+class on {
 	/**
 	 * Construct.
 	 * @param mixed $event_name
@@ -19,9 +17,8 @@ final readonly class on {
 	 * @return mixed
 	 */
 	public function __construct(
-		public string $event_name,
-		public int $priority = 0,
+		public readonly string $event_name,
+		public readonly int $priority = 0,
 	) {
 	}
 }
-

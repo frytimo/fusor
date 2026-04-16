@@ -16,7 +16,7 @@ class message_queue extends SharedMemory {
 		 */
 		public function __construct(StorageInterface $storage) {
 			parent::__construct($storage);
-			parent::__set('list', []);
+			parent::__set(property: 'list', value: []);
 		}
 
 		/**

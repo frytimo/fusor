@@ -44,13 +44,12 @@ class env_loader {
 	 * @return void
 	 */
 	public static function load_env_file(string $directory): void {
-		$env_file = rtrim($directory, '/\\') . '/.env';
+		$env_file = rtrim($directory, '/\\');
 		if (!is_file($env_file)) {
 			self::$env_text = '';
 			self::$env_settings = [];
 			return;
 		}
-
 		self::$env_text = self::load_text_file($env_file);
 		self::$env_settings = self::parse_env_text(self::$env_text);
 	}
@@ -97,15 +96,34 @@ class env_loader {
 				continue;
 			}
 
+			if (!isset($_ENV[$section]) || !is_array($_ENV[$section])) {
+				$_ENV[$section] = [];
+			}
+
 			foreach ($settings as $key => $value) {
 				if (!is_string($key) || !is_scalar($value)) {
 					continue;
 				}
 
 				$normalized_value = self::normalize_env_value($key, (string) $value);
-				$env_key = $section . '.' . $key;
-				$_ENV[$env_key] = $normalized_value;
-				@putenv($env_key . '=' . $normalized_value);
+
+				// Collapse dotted keys (e.g. scan_path.0, scan_path.1) into nested arrays
+				if (($dot_pos = strpos($key, '.')) !== false) {
+					$parent = substr($key, 0, $dot_pos);
+					$child = substr($key, $dot_pos + 1);
+					if (!isset($_ENV[$section][$parent]) || !is_array($_ENV[$section][$parent])) {
+						$_ENV[$section][$parent] = [];
+					}
+					if (ctype_digit($child)) {
+						$_ENV[$section][$parent][(int) $child] = $normalized_value;
+					} else {
+						$_ENV[$section][$parent][$child] = $normalized_value;
+					}
+				} else {
+					$_ENV[$section][$key] = $normalized_value;
+				}
+
+				@putenv($section . '.' . $key . '=' . $normalized_value);
 			}
 		}
 	}
@@ -162,4 +180,3 @@ class env_loader {
 		return $value;
 	}
 }
-

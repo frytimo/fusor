@@ -6,7 +6,7 @@ namespace frytimo\fusor\resources\classes;
  * Http route hook dispatcher.
  */
 class http_route_hook_dispatcher {
-	private static bool $dispatched = false;
+	private static string $last_request_fingerprint = '';
 
 	/**
 	 * Dispatch request hooks.
@@ -15,12 +15,17 @@ class http_route_hook_dispatcher {
 	 * @return int
 	 */
 	public static function dispatch_request_hooks(\auto_loader $autoload, bool $force_refresh = false): int {
-		if (self::$dispatched) {
+		$request_fingerprint = self::resolve_request_fingerprint();
+		if ($request_fingerprint !== '' && self::$last_request_fingerprint === $request_fingerprint) {
 			return 0;
 		}
 
-		$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? ''));
-		if (!in_array($method, ['GET', 'POST'], true)) {
+		if ($request_fingerprint !== '') {
+			self::$last_request_fingerprint = $request_fingerprint;
+		}
+
+		$request_method = strtolower(trim((string) ($_SERVER['REQUEST_METHOD'] ?? '')));
+		if ($request_method !== 'get' && $request_method !== 'post') {
 			return 0;
 		}
 
@@ -29,160 +34,110 @@ class http_route_hook_dispatcher {
 			return 0;
 		}
 
-		require_once dirname(__DIR__) . '/attributes/route.php';
-		require_once dirname(__DIR__) . '/attributes/get.php';
-		require_once dirname(__DIR__) . '/attributes/post.php';
-		require_once __DIR__ . '/fusor_discovery.php';
-		require_once __DIR__ . '/fusor_event.php';
-
 		$supports_attribute_discovery = method_exists($autoload, 'get_attributes');
+		if (!$supports_attribute_discovery) {
+			throw new \RuntimeException('Fusor requires an auto_loader that supports attribute discovery for HTTP lifecycle hooks to function.');
+		}
 
-		if ($supports_attribute_discovery && $force_refresh && method_exists($autoload, 'update')) {
+		if ($force_refresh && method_exists($autoload, 'update')) {
 			$autoload->update();
 		}
 
-		$attribute_name = strtolower($method);
-		$methods = [];
-		if ($supports_attribute_discovery) {
-			fusor_discovery::discover_attributes($autoload, $force_refresh);
-			$methods = fusor_discovery::get_methods($attribute_name);
-		} else {
-			$methods = self::discover_methods_by_reflection($attribute_name);
-		}
+		fusor_discovery::discover_attributes(auto_loader: $autoload, force_refresh: $force_refresh);
+
+		$method_upper = strtoupper($request_method);
+		$event_data = [
+			'method' => $method_upper,
+			'path' => $request_path,
+			'params' => [],
+			'query' => is_array($_GET) ? $_GET : [],
+			'body' => is_array($_POST) ? $_POST : [],
+			'html' => '',
+		];
+
+		$before_events = [
+			'before_http_' . $request_method,
+			'before_http_' . $request_method . ':' . $request_path,
+		];
+
+		$after_events = [
+			'after_http_' . $request_method,
+			'after_http_' . $request_method . ':' . $request_path,
+		];
+
 		$invoked = 0;
-		$processed_methods = [];
-
-		foreach ($methods as $method_entry) {
-			$class_name = trim((string) ($method_entry['class'] ?? ''));
-			$method_name = trim((string) ($method_entry['method'] ?? ''));
-
-			if ($class_name === '' || $method_name === '') {
+		foreach ($before_events as $before_event_name) {
+			if (!fusor_dispatcher::has_listeners($before_event_name)) {
 				continue;
 			}
 
-			$method_key = $class_name . '::' . $method_name;
-			if (isset($processed_methods[$method_key])) {
-				continue;
-			}
+			$event = new fusor_event($before_event_name, data: $event_data);
+			fusor_dispatcher::dispatch($event);
+			++$invoked;
+		}
 
-			$processed_methods[$method_key] = true;
-
-			if (!class_exists($class_name)) {
-				continue;
-			}
-
-			try {
-				$reflection_method = new \ReflectionMethod($class_name, $method_name);
-			} catch (\ReflectionException $exception) {
-				trigger_error('Fusor failed to reflect method ' . $method_key . ': ' . $exception->getMessage(), E_USER_WARNING);
-				continue;
-			}
-
-			if (!$reflection_method->isPublic() || !$reflection_method->isStatic()) {
-				continue;
-			}
-
-			$route_attributes = self::get_route_attributes($reflection_method, $method);
-			if (empty($route_attributes)) {
-				continue;
-			}
-
-			foreach ($route_attributes as $route_attribute) {
-				$route_path = self::normalize_path((string) ($route_attribute->path ?? ''));
-				$route_method = strtoupper((string) ($route_attribute->method ?? ''));
-
-				if ($route_path === '' || $route_method !== $method) {
-					continue;
-				}
-
-				$route_params = [];
-				if (!self::path_matches($route_path, $request_path, $route_params)) {
-					continue;
-				}
-
-				$event = new fusor_event('http_' . strtolower($method), data: [
-					'method' => $method,
-					'route' => $route_path,
-					'path' => $request_path,
-					'params' => $route_params,
-					'query' => $_GET,
-					'body' => $_POST,
-				]);
-
-				try {
-					if ($reflection_method->getNumberOfParameters() > 0) {
-						$reflection_method->invoke(null, $event);
-					} else {
-						$reflection_method->invoke(null);
-					}
-					++$invoked;
-				} catch (\Throwable $exception) {
-					trigger_error('Fusor request hook failure for ' . $method_key . ': ' . $exception->getMessage(), E_USER_WARNING);
-				}
+		$has_after_events = false;
+		foreach ($after_events as $after_event_name) {
+			if (fusor_dispatcher::has_listeners($after_event_name)) {
+				$has_after_events = true;
+				break;
 			}
 		}
 
-		self::$dispatched = true;
+		if ($has_after_events) {
+			$fusor_buffer_base_level = ob_get_level();
+			$fusor_buffer_target_level = $fusor_buffer_base_level + 1;
+			ob_start();
+
+			register_shutdown_function(static function () use ($after_events, $event_data, $fusor_buffer_base_level, $fusor_buffer_target_level): void {
+				$output = '';
+				while (ob_get_level() > $fusor_buffer_base_level) {
+					if (ob_get_level() === $fusor_buffer_target_level) {
+						$output = (string) ob_get_contents();
+						ob_end_clean();
+						continue;
+					}
+
+					ob_end_flush();
+				}
+
+				$html_output = $output;
+				$after_event_data = $event_data;
+				$after_event_data['html'] = &$html_output;
+
+				foreach ($after_events as $after_event_name) {
+					if (!fusor_dispatcher::has_listeners($after_event_name)) {
+						continue;
+					}
+
+					$event = new fusor_event($after_event_name, data: $after_event_data);
+					fusor_dispatcher::dispatch($event);
+				}
+
+				echo $html_output;
+			});
+			++$invoked;
+		}
+
 		return $invoked;
 	}
 
 	/**
-	 * Discover methods by reflection.
-	 * @param mixed $attribute_name
-	 * @return array
+	 * Resolve request fingerprint.
+	 * @return string
 	 */
-	private static function discover_methods_by_reflection(string $attribute_name): array {
-		$attribute_class = 'frytimo\\fusor\\resources\\attributes\\' . strtolower($attribute_name);
-		$methods = [];
+	private static function resolve_request_fingerprint(): string {
+		$request_time = (string) ($_SERVER['REQUEST_TIME_FLOAT'] ?? $_SERVER['REQUEST_TIME'] ?? '');
+		$request_method = (string) ($_SERVER['REQUEST_METHOD'] ?? '');
+		$request_uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+		$script_name = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
 
-		foreach (get_declared_classes() as $class_name) {
-			try {
-				$reflection_class = new \ReflectionClass($class_name);
-			} catch (\ReflectionException $exception) {
-				continue;
-			}
-
-			foreach ($reflection_class->getMethods(\ReflectionMethod::IS_PUBLIC) as $reflection_method) {
-				if (!$reflection_method->isStatic()) {
-					continue;
-				}
-
-				$attributes = $reflection_method->getAttributes($attribute_class, \ReflectionAttribute::IS_INSTANCEOF);
-				if (empty($attributes)) {
-					continue;
-				}
-
-				$methods[] = [
-					'class' => $class_name,
-					'method' => $reflection_method->getName(),
-				];
-			}
+		$fingerprint = trim($request_time . '|' . $request_method . '|' . $request_uri . '|' . $script_name, '|');
+		if ($fingerprint === '') {
+			return '';
 		}
 
-		return $methods;
-	}
-
-	/**
-	 * Get route attributes.
-	 * @param mixed $reflection_method
-	 * @param mixed $method
-	 * @return array
-	 */
-	private static function get_route_attributes(\ReflectionMethod $reflection_method, string $method): array {
-		$attribute_class = 'frytimo\\fusor\\resources\\attributes\\' . strtolower($method);
-
-		$attributes = $reflection_method->getAttributes($attribute_class, \ReflectionAttribute::IS_INSTANCEOF);
-		$instances = [];
-
-		foreach ($attributes as $attribute) {
-			try {
-				$instances[] = $attribute->newInstance();
-			} catch (\Throwable $exception) {
-				trigger_error('Fusor failed to instantiate route attribute: ' . $exception->getMessage(), E_USER_WARNING);
-			}
-		}
-
-		return $instances;
+		return sha1($fingerprint);
 	}
 
 	/**
@@ -221,61 +176,6 @@ class http_route_hook_dispatcher {
 		}
 
 		return $path;
-	}
-
-	/**
-	 * Path matches.
-	 * @param mixed $route_path
-	 * @param mixed $request_path
-	 * @param mixed $route_params
-	 * @return bool
-	 */
-	private static function path_matches(string $route_path, string $request_path, array &$route_params): bool {
-		if ($route_path === $request_path) {
-			$route_params = [];
-			return true;
-		}
-
-		if (strpos($route_path, '*') !== false && fnmatch($route_path, $request_path)) {
-			$route_params = [];
-			return true;
-		}
-
-		if (strpos($route_path, '{') === false) {
-			return false;
-		}
-
-		$route_parts = explode('/', trim($route_path, '/'));
-		$request_parts = explode('/', trim($request_path, '/'));
-		if (count($route_parts) !== count($request_parts)) {
-			return false;
-		}
-
-		$param_names = [];
-		$regex_segments = [];
-		foreach ($route_parts as $segment) {
-			if (preg_match('/^\{([a-zA-Z_][a-zA-Z0-9_]*)\}$/', $segment, $match) === 1) {
-				$param_names[] = $match[1];
-				$regex_segments[] = '([^/]+)';
-				continue;
-			}
-
-			$regex_segments[] = preg_quote($segment, '#');
-		}
-
-		$regex = '#^/' . implode('/', $regex_segments) . '$#';
-		$matched = preg_match($regex, $request_path, $matches);
-		if ($matched !== 1) {
-			return false;
-		}
-
-		array_shift($matches);
-		$route_params = [];
-		foreach ($param_names as $index => $name) {
-			$route_params[$name] = $matches[$index] ?? null;
-		}
-
-		return true;
 	}
 }
 
