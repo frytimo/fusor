@@ -1,12 +1,12 @@
 <?php
 
-namespace frytimo\fusor\resources\attributes;
+namespace Frytimo\Fusor\resources\attributes;
 
 use \Attribute;
 
 /**
  * The on attribute allows fusor to act upon an attribute that is tagged on a method
- * @package frytimo\fusor\resources\attributes
+ * @package Frytimo\Fusor\resources\attributes
  */
 #[Attribute(Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 class on {

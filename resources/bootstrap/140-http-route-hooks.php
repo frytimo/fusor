@@ -13,4 +13,4 @@ if (PHP_SAPI === 'cli'
 	return;
 }
 
-\frytimo\fusor\resources\classes\http_route_hook_dispatcher::dispatch_request_hooks($autoload, true);
+\Frytimo\Fusor\resources\classes\http_route_hook_dispatcher::dispatch_request_hooks($autoload, true);

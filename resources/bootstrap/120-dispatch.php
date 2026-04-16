@@ -21,8 +21,8 @@ function dispatch() {
 	$html_output = '';
 	$before_event = "before_render_$page";
 	$after_event = "after_render_$page";
-	$has_before_listeners = \frytimo\fusor\resources\classes\fusor_dispatcher::has_listeners($before_event);
-	$has_after_listeners = \frytimo\fusor\resources\classes\fusor_dispatcher::has_listeners($after_event);
+	$has_before_listeners = \Frytimo\Fusor\resources\classes\fusor_dispatcher::has_listeners($before_event);
+	$has_after_listeners = \Frytimo\Fusor\resources\classes\fusor_dispatcher::has_listeners($after_event);
 
 	$fusor_buffer_base_level = ob_get_level();
 	$fusor_buffer_target_level = $fusor_buffer_base_level + 1;
@@ -33,8 +33,8 @@ function dispatch() {
 	// check if the current page has any listeners registered for "before_$page" and if so, start output buffering to capture the output for the shutdown function
 	if ($has_before_listeners) {
 		// The html is passed by reference to the event so it can be modified by the listeners before it is sent to the browser.
-		$event = new \frytimo\fusor\resources\classes\fusor_event($before_event, data: ['html' => &$html_output]);
-		\frytimo\fusor\resources\classes\fusor_dispatcher::dispatch($event);
+		$event = new \Frytimo\Fusor\resources\classes\fusor_event($before_event, data: ['html' => &$html_output]);
+		\Frytimo\Fusor\resources\classes\fusor_dispatcher::dispatch($event);
 	}
 
 	if ($has_after_listeners) {
@@ -51,8 +51,8 @@ function dispatch() {
 				ob_end_flush();
 			}
 
-			$event = new \frytimo\fusor\resources\classes\fusor_event($after_event, data: ['html' => &$html_output]);
-			\frytimo\fusor\resources\classes\fusor_dispatcher::dispatch($event);
+			$event = new \Frytimo\Fusor\resources\classes\fusor_event($after_event, data: ['html' => &$html_output]);
+			\Frytimo\Fusor\resources\classes\fusor_dispatcher::dispatch($event);
 			echo $output;
 		});
 	}

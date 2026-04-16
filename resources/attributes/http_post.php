@@ -1,6 +1,6 @@
 <?php
 
-namespace frytimo\fusor\resources\attributes;
+namespace Frytimo\Fusor\resources\attributes;
 
 use Attribute;
 

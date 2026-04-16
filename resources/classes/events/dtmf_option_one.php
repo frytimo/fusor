@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace frytimo\fusor\resources\classes\events;
+namespace Frytimo\Fusor\resources\classes\events;
 
-use frytimo\fusor\resources\attributes\on;
-use frytimo\fusor\resources\classes\fusor_event;
-use frytimo\fusor\resources\classes\fusor_service;
+use Frytimo\Fusor\resources\attributes\on;
+use Frytimo\Fusor\resources\classes\fusor_event;
+use Frytimo\Fusor\resources\classes\fusor_service;
 
 /**
  * Dtmf option one.

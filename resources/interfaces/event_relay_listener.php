@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace frytimo\fusor\resources\interfaces;
+namespace Frytimo\Fusor\resources\interfaces;
 
 /**
  * Event relay listener.

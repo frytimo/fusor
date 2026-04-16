@@ -1,6 +1,6 @@
 <?php
 
-namespace frytimo\fusor\resources\attributes;
+namespace Frytimo\Fusor\resources\attributes;
 
 /**
  * Shared HTTP attribute base class.
@@ -8,7 +8,7 @@ namespace frytimo\fusor\resources\attributes;
  * Provides normalized path and stage handling so concrete
  * HTTP method attributes can reuse the same logic.
  *
- * @package frytimo\fusor\resources\attributes
+ * @package Frytimo\Fusor\resources\attributes
  */
 abstract class http extends on {
 	public readonly string $method;
@@ -75,13 +75,6 @@ abstract class http extends on {
 			return '*';
 		}
 
-		$path = '/' . ltrim($path, '/');
-		$path = preg_replace('#/+#', '/', $path);
-
-		if ($path !== '/' && str_ends_with($path, '/')) {
-			$path = rtrim($path, '/');
-		}
-
-		return $path;
+		return \Frytimo\Fusor\resources\classes\http_request_url::normalize_path($path);
 	}
 }

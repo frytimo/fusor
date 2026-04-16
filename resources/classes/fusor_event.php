@@ -1,6 +1,6 @@
 <?php
 
-namespace frytimo\fusor\resources\classes;
+namespace Frytimo\Fusor\resources\classes;
 
 /**
  * Fusor event.

@@ -3,6 +3,7 @@
 ## Summary
 - Classes/Interfaces/Traits: http_route_hook_dispatcher
 - Functions/Methods: 6
+- Notes: HTTP lifecycle events now include a shared URL helper object plus filtered request arrays for safe access.
 
 ## Classes
 - http_route_hook_dispatcher

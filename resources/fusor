@@ -16,6 +16,7 @@ function fusor_resolve_dir(): string {
 		dirname(__DIR__),
 		dirname($script_dir),
 		getcwd() . '/app/fusor',
+		getcwd() . '/vendor/frytimo/fusor',
 		'/var/www/fusionpbx/app/fusor',
 	];
 
@@ -25,19 +26,39 @@ function fusor_resolve_dir(): string {
 			continue;
 		}
 
-		if (is_file($candidate . '/bootstrap.php') && is_file(dirname($candidate, 2) . '/resources/require.php')) {
+		if (is_file($candidate . '/bootstrap.php')) {
 			return $candidate;
 		}
 	}
 
-	throw new RuntimeException('Unable to locate Fusor directory. Set FUSOR_DIR to your app/fusor path.');
+	throw new RuntimeException('Unable to locate Fusor directory. Set FUSOR_DIR to your Fusor install path.');
 }
 
 $fusor_dir = fusor_resolve_dir();
 require_once $fusor_dir . '/bootstrap.php';
-require_once dirname($fusor_dir, 2) . '/resources/require.php';
 
-use frytimo\fusor\resources\classes\fusor_service;
+$root_require_path = PROJECT_ROOT_DIR . '/resources/require.php';
+if (is_file($root_require_path)) {
+	require_once $root_require_path;
+}
+
+if (!class_exists('command_option')) {
+	class command_option {
+		public function __construct(private array $data = []) {
+		}
+
+		public static function new(array $data): self {
+			return new self($data);
+		}
+
+		public function to_array(): array {
+			return $this->data;
+		}
+	}
+}
+
+use Frytimo\Fusor\resources\classes\fusor;
+use Frytimo\Fusor\resources\classes\fusor_service;
 
 /**
  * Fusor command line utility.
@@ -148,7 +169,7 @@ class fusor_cli {
 	 * @return void
 	 */
 	protected static function display_version(): void {
-		echo 'Fusor version ' . fusor_service::VERSION . PHP_EOL;
+		echo 'Fusor version ' . fusor::VERSION . PHP_EOL;
 	}
 
 	/**

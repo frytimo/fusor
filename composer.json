@@ -1,15 +1,32 @@
 {
     "name": "frytimo/fusor",
-    "description": "FusionPBX Enhancement",
-    "type": "project",
+    "description": "Attribute-driven extension and event hook layer for FusionPBX and compatible PHP projects",
+    "type": "library",
     "require": {
         "php": ">=8.2",
-        "ninsuo/php-shared-memory": "2.1"
+        "ninsuo/php-shared-memory": "^2.1",
+        "league/uri": "^7"
     },
     "license": "MIT",
+    "keywords": [
+        "fusionpbx",
+        "hooks",
+        "events",
+        "attributes",
+        "freeswitch"
+    ],
+    "homepage": "https://github.com/frytimo/fusor",
+    "support": {
+        "issues": "https://github.com/frytimo/fusor/issues",
+        "source": "https://github.com/frytimo/fusor"
+    },
+    "bin": [
+        "resources/fusor"
+    ],
     "autoload": {
         "psr-4": {
-            "Frytimo\\Fusor\\": "resources/"
+            "Frytimo\\Fusor\\resources\\": "resources/",
+            "frytimo\\fusor\\resources\\": "resources/"
         }
     },
     "authors": [

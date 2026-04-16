@@ -1,8 +1,8 @@
 <?php
-namespace frytimo\fusor\resources\classes;
+namespace Frytimo\Fusor\resources\classes;
 
 use event_socket;
-use frytimo\fusor\resources\classes\message_queue;
+use Frytimo\Fusor\resources\classes\message_queue;
 use service;
 
 /**

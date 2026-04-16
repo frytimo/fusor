@@ -15,5 +15,5 @@ if (!isset($autoload) || !($autoload instanceof \auto_loader) || PHP_SAPI === 'c
 }
 
 // Discover and register any classes that have been marked with the appropriate attributes for discovery.
-\frytimo\fusor\resources\classes\fusor_discovery::discover_attributes($autoload);
-\frytimo\fusor\resources\classes\fusor_dispatcher::register_discovered_listeners($autoload);
+\Frytimo\Fusor\resources\classes\fusor_discovery::discover_attributes($autoload);
+\Frytimo\Fusor\resources\classes\fusor_dispatcher::register_discovered_listeners($autoload);

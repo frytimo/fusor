@@ -13,9 +13,22 @@ if (!defined('FUSOR_DIR')) {
 	define('FUSOR_DIR', __DIR__);
 }
 
-// Declare PROJECT_ROOT_DIR as the parent directory of FUSOR_DIR if not already defined.
+// Detect whether Fusor is loaded from the local app path or from a Composer vendor folder.
+if (!defined('FUSOR_INSTALLATION_CONTEXT')) {
+	$context = basename(dirname(FUSOR_DIR, 2)) === 'vendor' ? 'vendor' : 'local';
+	define('FUSOR_INSTALLATION_CONTEXT', $context);
+}
+
+// Declare PROJECT_ROOT_DIR using the detected installation layout or an explicit override.
 if (!defined('PROJECT_ROOT_DIR')) {
-	define('PROJECT_ROOT_DIR', dirname(FUSOR_DIR, 2));
+	$project_root_override = trim((string) ($_ENV['FUSOR_PROJECT_ROOT'] ?? getenv('FUSOR_PROJECT_ROOT') ?: ''));
+	if ($project_root_override !== '') {
+		define('PROJECT_ROOT_DIR', rtrim($project_root_override, '/'));
+	} else if (FUSOR_INSTALLATION_CONTEXT === 'vendor') {
+		define('PROJECT_ROOT_DIR', dirname(FUSOR_DIR, 3));
+	} else {
+		define('PROJECT_ROOT_DIR', dirname(FUSOR_DIR, 2));
+	}
 }
 
 // Load Fusor bootstrap files first, then app bootstrap files project-wide.

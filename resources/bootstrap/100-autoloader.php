@@ -12,10 +12,11 @@ function load_composer_autoloader() {
 
 	// Load the Composer autoloader if it exists.
 	$composer_autoloader_file       = null;
-	$composer_autoloader_candidates = [
+	$composer_autoloader_candidates = array_values(array_unique([
 		FUSOR_DIR . '/vendor/autoload.php',
 		PROJECT_ROOT_DIR . '/vendor/autoload.php',
-	];
+		dirname(PROJECT_ROOT_DIR) . '/vendor/autoload.php',
+	]));
 
 	foreach ($composer_autoloader_candidates as $candidate) {
 		if (file_exists($candidate)) {

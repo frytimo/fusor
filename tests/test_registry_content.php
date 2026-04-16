@@ -9,9 +9,9 @@ global $autoload;
 $autoload->update();
 
 // Force refresh to get new cache version
-\fusor\resources\classes\fusor_discovery::discover_attributes($autoload, true);
+\Frytimo\Fusor\resources\classes\fusor_discovery::discover_attributes($autoload, true);
 
-$registry = \fusor\resources\classes\fusor_discovery::get_registry();
+$registry = \Frytimo\Fusor\resources\classes\fusor_discovery::get_registry();
 $methods = $registry['methods'] ?? [];
 
 echo "Total methods: " . count($methods) . "\n\n";

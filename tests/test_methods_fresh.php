@@ -9,13 +9,13 @@ global $autoload;
 $autoload->update();
 
 // Clear any existing cache  
-\fusor\resources\classes\fusor_discovery::clear_cache();
+\Frytimo\Fusor\resources\classes\fusor_discovery::clear_cache();
 
 // Discover with fresh cache
-\fusor\resources\classes\fusor_discovery::discover_attributes($autoload, true);
+\Frytimo\Fusor\resources\classes\fusor_discovery::discover_attributes($autoload, true);
 
 // Get methods with 'on' attribute
-$methods = \fusor\resources\classes\fusor_discovery::get_methods('on');
+$methods = \Frytimo\Fusor\resources\classes\fusor_discovery::get_methods('on');
 
 echo "============ Methods with 'on' attribute ============\n\n";
 foreach ($methods as $method) {

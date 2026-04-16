@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace frytimo\fusor\resources\classes\events;
+namespace Frytimo\Fusor\resources\classes\events;
 
-use frytimo\fusor\resources\interfaces\event_relay_listener;
+use Frytimo\Fusor\resources\interfaces\event_relay_listener;
 
 /**
  * Register attempt.

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace frytimo\fusor\resources\classes;
+namespace Frytimo\Fusor\resources\classes;
 
 use Fuz\Component\SharedMemory\Storage\StorageFile;
-use frytimo\fusor\resources\interfaces\event_relay_listener;
+use Frytimo\Fusor\resources\interfaces\event_relay_listener;
 
 /**
  * Fusor service.
@@ -259,10 +259,11 @@ class fusor_service extends \service {
 			return;
 		}
 
-		$autoload_candidates = [
-			dirname(__DIR__, 2) . '/vendor/autoload.php',
-			dirname(__DIR__, 4) . '/vendor/autoload.php',
-		];
+		$autoload_candidates = array_values(array_unique([
+			FUSOR_DIR . '/vendor/autoload.php',
+			PROJECT_ROOT_DIR . '/vendor/autoload.php',
+			dirname(PROJECT_ROOT_DIR) . '/vendor/autoload.php',
+		]));
 
 		foreach ($autoload_candidates as $candidate) {
 			if (!is_file($candidate)) {
@@ -322,7 +323,10 @@ class fusor_service extends \service {
 			return $autoload;
 		}
 
-		$autoload_file = dirname(__DIR__, 4) . '/resources/classes/auto_loader.php';
+		$autoload_file = PROJECT_ROOT_DIR . '/resources/classes/auto_loader.php';
+		if (!is_file($autoload_file)) {
+			$autoload_file = FUSOR_DIR . '/resources/classes/auto_loader.php';
+		}
 		if (!is_file($autoload_file)) {
 			return null;
 		}

@@ -6,12 +6,12 @@ require_once $fusor_root . '/bootstrap.php';
 global $autoload;
 
 // Force refresh to get new cache version
-\fusor\resources\classes\fusor_discovery::discover_attributes($autoload, true);
+\Frytimo\Fusor\resources\classes\fusor_discovery::discover_attributes($autoload, true);
 
-// Get methods with listens_to attribute
-$methods = \fusor\resources\classes\fusor_discovery::get_methods('fusor\\resources\\attributes\\on');
+// Get methods with the current on attribute
+$methods = \Frytimo\Fusor\resources\classes\fusor_discovery::get_methods('frytimo\\fusor\\resources\\attributes\\on');
 
-echo "============ Methods with listens_to attribute ============\n\n";
+echo "============ Methods with on attribute ============\n\n";
 foreach ($methods as $method) {
 	echo "Class: " . $method['class'] . "\n";
 	echo "Method: " . $method['method'] . "\n";

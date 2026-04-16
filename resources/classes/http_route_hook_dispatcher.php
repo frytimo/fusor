@@ -1,6 +1,6 @@
 <?php
 
-namespace frytimo\fusor\resources\classes;
+namespace Frytimo\Fusor\resources\classes;
 
 /**
  * Http route hook dispatcher.
@@ -29,7 +29,8 @@ class http_route_hook_dispatcher {
 			return 0;
 		}
 
-		$request_path = self::resolve_request_path();
+		$request_url = http_request_url::from_request();
+		$request_path = $request_url->get_path();
 		if ($request_path === '') {
 			return 0;
 		}
@@ -51,7 +52,10 @@ class http_route_hook_dispatcher {
 			'path' => $request_path,
 			'params' => [],
 			'query' => is_array($_GET) ? $_GET : [],
+			'query_safe' => $request_url->get_query_array(),
 			'body' => is_array($_POST) ? $_POST : [],
+			'body_safe' => $request_url->get_body_array(),
+			'url' => $request_url,
 			'html' => '',
 		];
 
@@ -163,19 +167,7 @@ class http_route_hook_dispatcher {
 	 * @return string
 	 */
 	private static function normalize_path(string $path): string {
-		$path = trim($path);
-		if ($path === '') {
-			return '';
-		}
-
-		$path = '/' . ltrim($path, '/');
-		$path = preg_replace('#/+#', '/', $path);
-
-		if ($path !== '/' && str_ends_with($path, '/')) {
-			$path = rtrim($path, '/');
-		}
-
-		return $path;
+		return http_request_url::normalize_path($path);
 	}
 }
 

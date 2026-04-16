@@ -1,8 +1,8 @@
 <?php
 
-namespace frytimo\fusor\resources\classes;
+namespace Frytimo\Fusor\resources\classes;
 
-use frytimo\fusor\resources\attributes\on;
+use Frytimo\Fusor\resources\attributes\on;
 
 /**
  * Missed call webhook listener.

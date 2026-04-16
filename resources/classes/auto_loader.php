@@ -321,17 +321,21 @@ class auto_loader {
 
 					// Combine the namespace and name
 					$full_name = $namespace . $name;
+					$lower_full_name = strtolower($full_name);
 
 					// Store the class/interface/trait with its file overwriting any existing declaration.
 					$this->classes[$full_name] = $file;
+					$this->classes[$lower_full_name] = $file;
 					if ($type === 'trait') {
 						$this->traits[$full_name] = $file;
+						$this->traits[$lower_full_name] = $file;
 					}
 
 					// Track inheritance (what this class/interface extends)
 					if (isset($match[3]) && trim($match[3]) !== '') {
 						$parent_name = trim($match[3], " \n\r\t\v\x00\\");
 						$this->inheritance[$full_name] = $parent_name;
+						$this->inheritance[$lower_full_name] = $parent_name;
 					}
 
 					// If it's a class that implements interfaces, process the implements clause.
@@ -340,15 +344,22 @@ class auto_loader {
 						$interface_list = explode(',', $match[4]);
 						foreach ($interface_list as $interface) {
 							$interface_name = trim($interface, " \n\r\t\v\x00\\");
+							$lower_interface_name = strtolower($interface_name);
 							// Check that it is declared as an array so we can record the classes
 							if (empty($this->interfaces[$interface_name])) {
 								$this->interfaces[$interface_name] = [];
+							}
+							if (empty($this->interfaces[$lower_interface_name])) {
+								$this->interfaces[$lower_interface_name] = [];
 							}
 
 							// Ensure we don't already have the class recorded
 							if (!in_array($full_name, $this->interfaces[$interface_name], true)) {
 								// Record the classes that implement interface sorting by namspace and class name
 								$this->interfaces[$interface_name][] = $full_name;
+							}
+							if (!in_array($full_name, $this->interfaces[$lower_interface_name], true)) {
+								$this->interfaces[$lower_interface_name][] = $full_name;
 							}
 						}
 					}
@@ -1389,11 +1400,18 @@ class auto_loader {
 
 		//sanitize the class name (preserve backslashes for namespaces)
 		$class_name = preg_replace('/[^a-zA-Z0-9_\\\\]/', '', $class_name);
+		$lookup_name = $class_name;
+		if (!isset($this->classes[$lookup_name])) {
+			$lower_lookup_name = strtolower($lookup_name);
+			if (isset($this->classes[$lower_lookup_name])) {
+				$lookup_name = $lower_lookup_name;
+			}
+		}
 
 		//find the path using the class_name as the key in the classes array
-		if (isset($this->classes[$class_name])) {
+		if (isset($this->classes[$lookup_name])) {
 			//include the class or interface
-			$result = @include_once $this->classes[$class_name];
+			$result = @include_once $this->classes[$lookup_name];
 
 			//check for edge case where the file was deleted after cache creation
 			if ($result === false) {
@@ -1401,7 +1419,7 @@ class auto_loader {
 				self::log(LOG_ERR, "class '$class_name' registered but include failed (file deleted?). Removed from cache.");
 
 				//remove the class from the array
-				unset($this->classes[$class_name]);
+				unset($this->classes[$lookup_name]);
 
 				if ($this->cache_enabled) {
 					//update the cache with new classes

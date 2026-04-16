@@ -26,6 +26,8 @@ It supports three main extension patterns:
 
 ## Quick Start
 
+### Local app layout inside FusionPBX
+
 1. Install Fusor dependencies:
 
 ```bash
@@ -45,6 +47,39 @@ PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;"); sed -
 cd /var/www/fusionpbx/app/fusor
 cp env-example .env
 ```
+
+### Root vendor installation via Composer
+
+Fusor can also run when installed into a root `vendor/` folder. The bootstrap now detects this layout automatically.
+
+Example consumer setup:
+
+```bash
+composer require frytimo/fusor
+```
+
+Then load Fusor from your project bootstrap:
+
+```php
+require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/frytimo/fusor/bootstrap.php';
+```
+
+The packaged CLI is also exposed through Composer bin support:
+
+```bash
+vendor/bin/fusor --help
+```
+
+## Namespace Policy
+
+The canonical public namespace is now:
+
+```php
+use Frytimo\Fusor\resources\classes\fusor_event;
+```
+
+The older lowercase namespace remains autoload-compatible during the transition so existing integrations do not break immediately.
 
 ## .ENV File
 
@@ -91,6 +126,16 @@ phpdoc -d . -t documents/api --ignore "vendor/*,tests/*,documents/*"
 
 The `documents/` folder contains file/class/function reference pages for Fusor source files.
 
+## Publishing Checklist
+
+Before publishing a release:
+
+1. Run Composer validation from the Fusor package directory.
+2. Run the Fusor test scripts and confirm they all succeed.
+3. Verify a temporary root-level Composer install still boots correctly from `vendor/frytimo/fusor`.
+4. Review the canonical namespace examples in this README and the documents folder.
+5. Tag the release only after both the local app layout and the vendor layout have been verified.
+
 ## How Fusor Works
 
 ### 1) Attribute Discovery
@@ -124,8 +169,8 @@ The event payload contains `html` by reference for render hooks.
 Use for generic events, including render hooks and switch-relayed events.
 
 ```php
-use frytimo\fusor\resources\attributes\on;
-use frytimo\fusor\resources\classes\fusor_event;
+use Frytimo\Fusor\resources\attributes\on;
+use Frytimo\Fusor\resources\classes\fusor_event;
 
 class my_listener {
 
@@ -176,10 +221,27 @@ HTTP lifecycle event payload includes:
 - `method`
 - `path`
 - `params`
-- `query`
-- `body`
+- `query` (legacy raw `$_GET` values for compatibility)
+- `query_safe` (filtered query values)
+- `body` (legacy raw `$_POST` values for compatibility)
+- `body_safe` (filtered POST and input-body values)
+- `url` (shared League URI-backed adapter with safe and unsafe access helpers)
 
 When `stage: 'after'` listeners are used, payload also includes `html` by reference so response output can be inspected or changed.
+
+### Shared URL Adapter
+
+HTTP events now expose `$event->url`, a shared request URL helper powered by League URI. This gives hooks a consistent API for reading normalized paths plus safe and unsafe values without having to parse `REQUEST_URI`, `$_GET`, or `$_POST` manually.
+
+Common examples:
+
+```php
+$path = $event->url->get_path();
+$status = $event->url->get_query_param('status');              // filtered value
+$raw_status = $event->url->get_query_param('status', null, true); // unsafe raw value
+$username = $event->url->post('username');
+$note_raw = $event->url->post('note', null, true);
+```
 
 ## Example 1: Create a New HTTP Lifecycle Hook Example
 
@@ -202,17 +264,18 @@ require_once dirname(__DIR__) . '/classes/my_fusor_demo_hooks.php';
 ```php
 <?php
 
-use frytimo\fusor\resources\attributes\http_post;
-use frytimo\fusor\resources\classes\fusor_event;
+use Frytimo\Fusor\resources\attributes\http_post;
+use Frytimo\Fusor\resources\classes\fusor_event;
 
 class my_fusor_demo_hooks {
 
     #[http_post('/api/my-fusor-demo/orders/*', stage: 'after')]
     public static function create_order(fusor_event $event): void {
-        $path = (string) ($event->path ?? '');
-        $payload = is_array($event->body) ? $event->body : [];
+        $path = $event->url?->get_path() ?? (string) ($event->path ?? '');
+        $payload = is_array($event->body_safe) ? $event->body_safe : [];
+        $status = $event->url?->get_query_param('status');
 
-        error_log('[my_fusor_demo] POST path: ' . $path . ' body=' . json_encode($payload));
+        error_log('[my_fusor_demo] POST path: ' . $path . ' status=' . $status . ' body=' . json_encode($payload));
     }
 }
 ```
@@ -236,8 +299,8 @@ This example demonstrates hooks for FusionPBX login/logout flow.
 ```php
 <?php
 
-use frytimo\fusor\resources\attributes\on;
-use frytimo\fusor\resources\classes\fusor_event;
+use Frytimo\Fusor\resources\attributes\on;
+use Frytimo\Fusor\resources\classes\fusor_event;
 
 class my_fusor_auth_hooks {
 
