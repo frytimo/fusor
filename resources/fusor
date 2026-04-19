@@ -58,7 +58,6 @@ if (!class_exists('command_option')) {
 }
 
 use Frytimo\Fusor\resources\classes\fusor;
-use Frytimo\Fusor\resources\classes\fusor_service;
 
 /**
  * Fusor command line utility.
