@@ -40,11 +40,7 @@ class http_route_hook_dispatcher {
 			throw new \RuntimeException('Fusor requires an auto_loader that supports attribute discovery for HTTP lifecycle hooks to function.');
 		}
 
-		if ($force_refresh && method_exists($autoload, 'update')) {
-			$autoload->update();
-		}
-
-		fusor_discovery::discover_attributes(auto_loader: $autoload, force_refresh: $force_refresh);
+		fusor_discovery::discover_attributes(auto_loader: $autoload, force_refresh: false);
 
 		$method_upper = strtoupper($request_method);
 		$event_data = [
