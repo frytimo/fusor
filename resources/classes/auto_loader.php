@@ -107,32 +107,83 @@ class auto_loader {
 	private bool $cache_enabled = false;
 
 	/**
-	 * Initializes the class using in-memory state only.
+	 * Initializes the class and primes the APCu-backed cache when available.
 	 *
-	 * @param bool $cache Retained for backward compatibility and ignored.
+	 * @param bool $cache If true, enables persistent APCu caching.
 	 */
 	public function __construct($cache = true) {
-		unset($cache);
+		openlog("PHP", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 
-		$this->cache_enabled = false;
-		$this->apcu_enabled = false;
+		$this->cache_enabled = (bool) $cache;
+		$this->apcu_enabled = $this->cache_enabled && self::is_apcu_available();
 		$this->classes = [];
 		$this->interfaces = [];
 		$this->inheritance = [];
 		$this->traits = [];
 		$this->attributes = $this->default_attribute_map();
 
-		$this->reload_classes();
+		if (!$this->load_cache()) {
+			$this->reload_classes();
+			$this->rebuild_traits_from_classes();
+			$this->update_cache();
+		}
+
+		$this->debug("Classes: " . implode(', ', array_keys($this->classes)));
+		$this->debug("Attributes: " . implode(', ', array_keys($this->attributes['method'] ?? [])));
+		$this->info("auto_loader initialized with " . count($this->classes) . " classes, " . count($this->interfaces) . " interfaces, " . count($this->traits) . " traits, and " . count($this->attributes) . " attributes.");
 		spl_autoload_register([$this, 'loader']);
+		$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5);
+		$this->debug("Autoloader registered at " . ($backtrace[0]['file'] ?? 'unknown file') . ":" . ($backtrace[0]['line'] ?? 'unknown line'));
+	}
+
+	public function __destruct()
+	{
+		try {
+			spl_autoload_unregister([$this, 'loader']);
+		} catch (\Throwable $t) {
+			// ignore errors during shutdown
+			$this->error("Error during auto_loader shutdown: " . $t->getMessage());
+			// we can't do much about it at this point, so just log and move on
+		} finally {
+			@closelog();
+		}
 	}
 
 	/**
-	 * Legacy cache loader retained for compatibility.
+	 * Logs a message at the specified level
 	 *
-	 * The auto-loader now operates in-memory only and does not read from APCu
-	 * or on-disk cache files.
+	 * @param int    $level   The log level (e.g. E_ERROR)
+	 * @param string $message The log message
+	 */
+	private static function log(int $level, string $message): void {
+		syslog($level, "[auto_loader] " . $message);
+	}
+
+	/**
+	 * Indicates whether APCu is available for persistent autoloader caching.
 	 *
-	 * @return bool Always false so callers rebuild state from source files.
+	 * @return bool
+	 */
+	private static function is_apcu_available(): bool {
+		if (!function_exists('apcu_fetch') || !function_exists('apcu_store') || !function_exists('apcu_delete')) {
+			return false;
+		}
+
+		if (function_exists('apcu_enabled')) {
+			return apcu_enabled();
+		}
+
+		$apc_enabled = filter_var((string) ini_get('apc.enabled'), FILTER_VALIDATE_BOOLEAN);
+		$apc_cli_enabled = PHP_SAPI !== 'cli' || filter_var((string) ini_get('apc.enable_cli'), FILTER_VALIDATE_BOOLEAN);
+
+		self::notice("APCu availability: apc.enabled=" . ($apc_enabled ? 'true' : 'false') . ", apc.enable_cli=" . ($apc_cli_enabled ? 'true' : 'false'));
+		return $apc_enabled && $apc_cli_enabled;
+	}
+
+	/**
+	 * Loads the class metadata cache from APCu when available.
+	 *
+	 * @return bool True when a valid cache entry was loaded.
 	 */
 	public function load_cache(): bool {
 		$this->classes = [];
@@ -141,7 +192,48 @@ class auto_loader {
 		$this->traits = [];
 		$this->attributes = $this->default_attribute_map();
 
-		return false;
+		if (!$this->cache_enabled || !$this->apcu_enabled) {
+			return false;
+		}
+
+		$cache_version = apcu_fetch(self::CACHE_VERSION_KEY, $version_cached);
+		$this->classes = apcu_fetch(self::CLASSES_KEY, $classes_cached);
+		$this->interfaces = apcu_fetch(self::INTERFACES_KEY, $interfaces_cached);
+		$this->inheritance = apcu_fetch(self::INHERITANCE_KEY, $inheritance_cached);
+		$this->attributes = apcu_fetch(self::ATTRIBUTES_KEY, $attributes_cached);
+
+		if (!$version_cached || !$classes_cached || !$interfaces_cached || !$inheritance_cached || !$attributes_cached) {
+			$this->classes = [];
+			$this->interfaces = [];
+			$this->inheritance = [];
+			$this->attributes = $this->default_attribute_map();
+			return false;
+		}
+
+		if ($cache_version !== self::CACHE_VERSION) {
+			$this->notice("Autoloader APCu cache version mismatch. Rebuilding.");
+			self::clear_cache();
+			$this->classes = [];
+			$this->interfaces = [];
+			$this->inheritance = [];
+			$this->attributes = $this->default_attribute_map();
+			return false;
+		}
+
+		if (!is_array($this->classes) || !is_array($this->interfaces) || !is_array($this->inheritance) || !is_array($this->attributes) || empty($this->classes)) {
+			$this->warning("Autoloader APCu cache failed validation. Rebuilding.");
+			self::clear_cache();
+			$this->classes = [];
+			$this->interfaces = [];
+			$this->inheritance = [];
+			$this->attributes = $this->default_attribute_map();
+			return false;
+		}
+
+		$this->attributes = array_replace($this->default_attribute_map(), $this->attributes);
+		$this->rebuild_traits_from_classes();
+
+		return true;
 	}
 
 	/**
@@ -291,54 +383,98 @@ class auto_loader {
 	}
 
 	/**
-	 * Legacy cache writer retained for compatibility.
+	 * Updates the APCu cache with the current autoloader maps.
 	 *
-	 * The auto-loader no longer persists state to APCu or disk. State is rebuilt
-	 * directly from source files and then held in internal arrays for the life of
-	 * the request.
-	 *
-	 * @return bool True when in-memory state is populated.
+	 * @return bool True when the cache state is valid for the current request.
 	 */
 	public function update_cache(): bool {
-		$this->rebuild_traits_from_classes();
+		if (empty($this->classes)) {
+			return false;
+		}
 
-		return !empty($this->classes);
+		if (!$this->cache_enabled || !$this->apcu_enabled) {
+			return true;
+		}
+
+		$result = apcu_store([
+			self::CACHE_VERSION_KEY => self::CACHE_VERSION,
+			self::CLASSES_KEY => $this->classes,
+			self::INTERFACES_KEY => $this->interfaces,
+			self::INHERITANCE_KEY => $this->inheritance,
+			self::ATTRIBUTES_KEY => $this->attributes,
+		], null, 0);
+
+		if ($result === true || (is_array($result) && empty($result))) {
+			return true;
+		}
+
+		$this->warning("Failed to persist the autoloader map to APCu.");
+		self::clear_cache();
+
+		return false;
 	}
 
-	/**
-	 * Logs a message at the specified level
-	 *
-	 * @param int    $level   The log level (e.g. E_ERROR)
-	 * @param string $message The log message
-	 */
-	private static function log(int $level, string $message): void {
-		if (filter_var($_REQUEST['debug'] ?? false, FILTER_VALIDATE_BOOLEAN) || filter_var(getenv('DEBUG') ?? false, FILTER_VALIDATE_BOOLEAN)) {
-			openlog("PHP", LOG_PID | LOG_PERROR, LOG_LOCAL0);
-			syslog($level, "[auto_loader] " . $message);
-			closelog();
+	public static function debug(string $message): void {
+		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+			self::log(LOG_DEBUG, $message);
+		}
+	}
+
+	public static function info(string $message): void {
+		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+			self::log(LOG_INFO, $message);
+		}
+	}
+
+	public static function error(string $message): void {
+		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+			self::log(LOG_ERR, $message);
+		}
+	}
+
+	public static function warning(string $message): void {
+		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+			self::log(LOG_WARNING, $message);
+		}
+	}
+
+	public static function notice(string $message): void {
+		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+			self::log(LOG_NOTICE, $message);
 		}
 	}
 
 	/**
-	 * Rebuild internal in-memory state from source files.
+	 * Rebuilds internal state and refreshes the APCu cache.
 	 *
 	 * @return void
 	 */
 	public function update() {
+		self::clear_cache();
 		$this->reload_classes();
 		$this->rebuild_traits_from_classes();
+		$this->update_cache();
 	}
 
 	/**
-	 * Legacy cache clear retained for compatibility.
-	 *
-	 * Persistent auto-loader caches have been removed, so there is nothing to
-	 * clear beyond the current process lifetime.
+	 * Clears the APCu-backed autoloader cache.
 	 *
 	 * @return void
 	 */
 	public static function clear_cache() {
-		// no-op: auto_loader now keeps only in-memory arrays for the request.
+		if (!self::is_apcu_available()) {
+			self::notice("Autoloader cache clear skipped because APCu is unavailable.");
+			return;
+		}
+
+		apcu_delete([
+			self::CACHE_VERSION_KEY,
+			self::CLASSES_KEY,
+			self::INTERFACES_KEY,
+			self::INHERITANCE_KEY,
+			self::ATTRIBUTES_KEY,
+		]);
+		self::notice("Autoloader APCu cache cleared.");
 	}
 
 	/**
@@ -549,10 +685,15 @@ class auto_loader {
 	 * @return void
 	 */
 	private function reload_attributes(array $scan_paths): void {
+		$project_path = defined('PROJECT_ROOT_DIR') ? PROJECT_ROOT_DIR : dirname(__DIR__, 4);
 
 		$attribute_files = [];
 		foreach ($scan_paths as $path) {
-			$attribute_files = array_merge($attribute_files, glob($path));
+			$path = (string) $path;
+			if ($path === '') {
+				continue;
+			}
+			$attribute_files = array_merge($attribute_files, glob($project_path . $path));
 		}
 
 		$attribute_files = array_unique($attribute_files);
@@ -892,13 +1033,6 @@ class auto_loader {
 	}
 
 	/**
-	 * Returns true when a token id is part of a namespace name.
-	 *
-	 * @param int $token_id
-	 *
-	 * @return bool
-	 */
-	/**
 	 * Extracts method modifiers (static, public, private, protected, abstract, final) from tokens before a function declaration.
 	 *
 	 * @param array $tokens
@@ -908,11 +1042,11 @@ class auto_loader {
 	 */
 	private function extract_method_modifiers(array $tokens, int $function_index): array {
 		$modifiers = [];
-		
+
 		// Look backwards from T_FUNCTION for modifiers
 		for ($i = $function_index - 1; $i >= 0; --$i) {
 			$token = $tokens[$i];
-			
+
 			if (is_string($token)) {
 				// Stop at structural boundaries (opening brace, semicolon, closing paren)
 				if ($token === '{' || $token === '}' || $token === ';') {
@@ -924,26 +1058,26 @@ class auto_loader {
 				}
 				continue;
 			}
-			
+
 			if (!is_array($token)) {
 				continue;
 			}
-			
+
 			$token_id = $token[0];
 			$token_text = trim($token[1] ?? '');
-			
+
 			// Stop at attribute start
 			if ($token_id === T_ATTRIBUTE) {
 				break;
 			}
-			
+
 			// Capture modifier keywords
-			if ($token_id === T_STATIC || $token_id === T_PUBLIC || $token_id === T_PROTECTED || 
+			if ($token_id === T_STATIC || $token_id === T_PUBLIC || $token_id === T_PROTECTED ||
 			    $token_id === T_PRIVATE || $token_id === T_ABSTRACT || $token_id === T_FINAL) {
 				$modifiers[] = strtolower($token_text);
 			}
 		}
-		
+
 		return array_reverse($modifiers);
 	}
 
@@ -1128,14 +1262,15 @@ class auto_loader {
 	}
 
 	/**
-	 * The loader is set to private because only the PHP engine should be calling this method
+	 * Load a class, interface, or trait when requested by the PHP engine.
 	 *
 	 * @param string $class_name The class name that needs to be loaded
 	 *
 	 * @return bool True if the class is loaded or false when the class is not found
-	 * @access private
 	 */
-	private function loader($class_name): bool {
+	public function loader($class_name): bool {
+
+		$this->debug("Attempting to load class '$class_name'");
 
 		//sanitize the class name (preserve backslashes for namespaces)
 		$class_name = preg_replace('/[^a-zA-Z0-9_\\\\]/', '', $class_name);
@@ -1155,15 +1290,10 @@ class auto_loader {
 			//check for edge case where the file was deleted after cache creation
 			if ($result === false) {
 				//send to syslog when debugging
-				self::log(LOG_ERR, "class '$class_name' registered but include failed (file deleted?). Removed from cache.");
+				$this->error("class '$class_name' registered but include failed (file deleted?). Removed from cache.");
 
 				//remove the class from the array
 				unset($this->classes[$lookup_name]);
-
-				if ($this->cache_enabled) {
-					//update the cache with new classes
-					$this->update_cache();
-				}
 
 				//return failure
 				return false;
@@ -1173,67 +1303,10 @@ class auto_loader {
 			return true;
 		}
 
-		//Smarty has it's own autoloader so reject the request
-		if ($class_name === 'Smarty_Autoloader') {
-			return false;
-		}
-
 		//cache miss
-		self::log(LOG_WARNING, "class '$class_name' not found in cache");
+		$this->warning("class '$class_name' not found in cache");
 
-		//build the search path array
-		$project_path = defined('PROJECT_ROOT_DIR') ? PROJECT_ROOT_DIR : dirname(__DIR__, 4);
-		$search_paths = $_ENV['auto_loader']['scan_path'] ?? [];
-		foreach ($search_paths as $path) {
-			$files = glob($project_path . $path);
-			if (!empty($files)) {
-				break;
-			}
-		}
-
-		//fix class names in the plugins directory prefixed with 'plugin_'
-		if (str_starts_with($class_name, 'plugin_')) {
-			$class_name = substr($class_name, 7);
-		}
-		$file = glob($project_path . "/core/authentication/resources/classes/plugins/" . $class_name . ".php");
-
-		//collapse all entries to only the matched entry
-		$matches = array_filter($files, function($file) use ($class_name) {
-			return is_array($file) && count($file) > 0 && basename($file[0], '.php') === $class_name;
-		});
-		if (!empty($matches)) {
-			$path = array_pop($matches)[0];
-
-			//include the class, interface, or trait
-			include_once $path;
-
-			//inject the class in to the array
-			$this->classes[$class_name] = $path;
-
-			if ($this->cache_enabled) {
-				//update the cache with new classes
-				$this->update_cache();
-			}
-
-			//return boolean
-			return true;
-		}
-
-		//send to syslog when debugging
-		self::log(LOG_ERR, "class '$class_name' not found name");
-
-		//return boolean
 		return false;
 	}
 
-	/**
-	 * Builds a SAPI-scoped cache file path to avoid CLI/FPM ownership collisions.
-	 */
-	private static function cache_file_path(string $base_file): string {
-		$sapi = preg_replace('/[^a-z0-9_]/i', '_', PHP_SAPI ?: 'unknown');
-		$file_name = preg_replace('/\.php$/', '_' . $sapi . '.php', $base_file);
-
-		return sys_get_temp_dir() . DIRECTORY_SEPARATOR . $file_name;
-	}
 }
-
