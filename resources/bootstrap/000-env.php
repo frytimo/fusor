@@ -2,6 +2,23 @@
 
 // Global Namespace for Fusor Resources
 
+// Some uopz installs default uopz.exit=0, which turns exit/die into no-ops.
+// FusionPBX authentication and logout flows rely on exit after redirects, so
+// restore normal behavior as early as possible when Fusor is active.
+if (extension_loaded('uopz')) {
+	if (function_exists('uopz_allow_exit')) {
+		try {
+			@call_user_func('\\uopz_allow_exit', true);
+		} catch (\Throwable $exception) {
+			// Ignore environments that do not allow changing this at runtime.
+		}
+	}
+
+	if ((string) ini_get('uopz.exit') !== '1') {
+		@ini_set('uopz.exit', '1');
+	}
+}
+
 /**
  * This file is responsible for loading environment variables from .env files located in the Fusor directory,
  * the project root, or the parent of the project root. It uses the env_loader class to parse the .env files
