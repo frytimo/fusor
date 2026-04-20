@@ -9,7 +9,7 @@ It supports four main extension patterns:
 - Switch event listeners handled by the Fusor service (`#[on(event_name: 'switch.*')]`)
 - Optional uopz-backed runtime auto-wiring for ~~constants~~, functions, methods, constants, and runtime helper functions
 
-** This must not be used in a production environment as it is considered a security risk by the creator of FusionPBX. **
+**This must not be used in a production environment as it is considered a security risk by the creator of FusionPBX.**
 
 ## Requirements
 
