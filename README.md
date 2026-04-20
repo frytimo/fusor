@@ -9,6 +9,8 @@ It supports four main extension patterns:
 - Switch event listeners handled by the Fusor service (`#[on(event_name: 'switch.*')]`)
 - Optional uopz-backed runtime auto-wiring for ~~constants~~, functions, methods, constants, and runtime helper functions
 
+** This must not be used in a production environment as it is considered a security risk by the creator of FusionPBX. **
+
 ## Requirements
 
 - FusionPBX 5.6+ (master branch after Apr. 13, 2026)
@@ -116,7 +118,54 @@ These are the standard locations the FusionPBX Auto Loader scans. Changing or re
 scan_path.9 = '/app/my_app/resources/classes/sub-classes/*.class.php',
 ```
 
-## Regenerate Documentation Quickly
+## Logging Configuration
+
+Fusor provides integrated logging through syslog and optional file-based logging. Logs are automatically written to the system syslog (facility `LOG_USER`, ident `FusionPBX Fusor`).
+
+### Enable File-Based Logging
+
+To additionally log Fusor events to a file, configure the log file path in the `.env` file:
+
+```ini
+[fusor_logger]
+log_file=/var/log/fusionpbx/fusor.log
+```
+
+The logger will create the file if it does not exist (permissions permitting). Each log entry includes a timestamp, priority level, process ID, and message.
+
+### Log File Permissions
+
+Ensure the log directory is writable by the PHP-FPM user (typically `www-data`):
+
+```bash
+mkdir -p /var/log/fusionpbx
+chown -R www-data:www-data /var/log/fusionpbx
+chmod 755 /var/log/fusionpbx
+```
+
+### Viewing Logs
+
+View syslog entries:
+
+```bash
+journalctl -u php8.4-fpm -g "FusionPBX Fusor" -n 100
+# or
+grep "FusionPBX Fusor" /var/log/syslog
+```
+
+View file-based logs:
+
+```bash
+tail -f /var/log/fusionpbx/fusor.log
+```
+
+### Disable File Logging
+
+To use only syslog and disable file logging, either:
+
+1. Omit the `log_file` setting in `.env`
+2. Set it to `/dev/null`
+
 
 The source is prepared with PHPDoc comments so API docs can be regenerated quickly.
 

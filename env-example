@@ -25,3 +25,14 @@ allow_cli=false
 ; When true, a listener pattern ending in '/*' also matches the directory path
 ; itself (for example, '/core/dashboard/*' also matches '/core/dashboard').
 match_directory_on_wildcard=true
+
+[fusor_logger]
+; Log file path for Fusor events and operations.
+; If not set, only syslog is used.
+; Set to '/dev/null' to disable file logging.
+; Examples:
+;   /var/log/fusionpbx/fusor.log
+;   /var/log/fusor/debug.log
+; Fusor automatically logs to syslog (facility LOG_USER, ident 'FusionPBX Fusor').
+; This setting enables additional file-based logging.
+log_file=/var/log/fusionpbx/fusor.log
