@@ -7,7 +7,7 @@ It supports four main extension patterns:
 - Render lifecycle hooks for web pages (for example, `before_render_login`)
 - HTTP lifecycle hooks via PHP attributes (`#[http_get]`, `#[http_post]`)
 - Switch event listeners handled by the Fusor service (`#[on(event_name: 'switch.*')]`)
-- Optional uopz-backed runtime auto-wiring for ~~constants~~, functions, methods, constants, and runtime helper functions
+- Optional uopz-backed runtime auto-wiring for ~~constants~~, functions, methods, and runtime helper functions
 
 **This must not be used in a production environment as it is considered a security risk by the creator of FusionPBX.**
 
