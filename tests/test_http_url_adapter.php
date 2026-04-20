@@ -14,6 +14,7 @@ if (!isset($autoload) || !($autoload instanceof auto_loader)) {
 
 $get_attribute = new \Frytimo\Fusor\resources\attributes\http_get('/fusor/url-test/', 'after');
 $post_attribute = new \Frytimo\Fusor\resources\attributes\http_post('/fusor/url-test/', 'before');
+$empty_get_attribute = new \Frytimo\Fusor\resources\attributes\http_get();
 
 if ($get_attribute->event_name !== 'after_http_get:/fusor/url-test') {
 	echo "FAIL: expected normalized http_get attribute event name\n";
@@ -22,6 +23,11 @@ if ($get_attribute->event_name !== 'after_http_get:/fusor/url-test') {
 
 if ($post_attribute->event_name !== 'before_http_post:/fusor/url-test') {
 	echo "FAIL: expected normalized http_post attribute event name\n";
+	exit(1);
+}
+
+if ($empty_get_attribute->path === '*') {
+	echo "FAIL: empty http_get path must not behave as a global wildcard\n";
 	exit(1);
 }
 

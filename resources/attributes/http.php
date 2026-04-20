@@ -11,6 +11,8 @@ namespace Frytimo\Fusor\resources\attributes;
  * @package Frytimo\Fusor\resources\attributes
  */
 abstract class http extends on {
+	private const MISSING_PATH_SENTINEL = '/__fusor_missing_path__';
+
 	public readonly string $method;
 	public readonly string $path;
 	public readonly string $stage;
@@ -23,7 +25,7 @@ abstract class http extends on {
 	 * @param mixed $priority
 	 * @return mixed
 	 */
-	public function __construct(string $method, string $path = '*', string $stage = 'before', int $priority = 0) {
+	public function __construct(string $method, string $path = '', string $stage = 'before', int $priority = 0) {
 		$normalized_method = self::normalize_method($method);
 		$normalized_path = self::normalize_path($path);
 		$normalized_stage = self::normalize_stage($stage);
@@ -71,8 +73,12 @@ abstract class http extends on {
 	 */
 	protected static function normalize_path(string $path): string {
 		$path = trim($path);
-		if ($path === '' || $path === '*') {
+		if ($path === '*') {
 			return '*';
+		}
+
+		if ($path === '') {
+			return self::MISSING_PATH_SENTINEL;
 		}
 
 		return \Frytimo\Fusor\resources\classes\http_request_url::normalize_path($path);

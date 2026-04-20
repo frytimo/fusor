@@ -13,7 +13,7 @@ class http_post extends http {
 	 * @param mixed $priority
 	 * @return mixed
 	 */
-	public function __construct(string $path = '*', string $stage = 'before', int $priority = 0) {
+	public function __construct(string $path = '', string $stage = 'before', int $priority = 0) {
 		parent::__construct(
 			method: 'post',
 			path: $path,
