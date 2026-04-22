@@ -19,9 +19,43 @@ if (!defined('FUSOR_INSTALLATION_CONTEXT')) {
 	define('FUSOR_INSTALLATION_CONTEXT', $context);
 }
 
+function fusor_bootstrap_project_root_override(): string {
+	$override = trim((string) ($_ENV['FUSOR_PROJECT_ROOT'] ?? getenv('FUSOR_PROJECT_ROOT') ?: ''));
+	if ($override !== '') {
+		return rtrim($override, '/');
+	}
+
+	$env_file = FUSOR_DIR . '/.env';
+	if (!is_file($env_file)) {
+		return '';
+	}
+
+	$parsed = @parse_ini_file($env_file, true, INI_SCANNER_RAW);
+	if (!is_array($parsed)) {
+		return '';
+	}
+
+	$bootstrap_paths = $parsed['bootstrap_paths'] ?? null;
+	if (!is_array($bootstrap_paths)) {
+		return '';
+	}
+
+	$project_root = $bootstrap_paths['PROJECT_ROOT'] ?? $bootstrap_paths['project_root'] ?? null;
+	if (!is_scalar($project_root)) {
+		return '';
+	}
+
+	$normalized = trim((string) $project_root, " \n\r\t\v\x00\"'");
+	if ($normalized === '') {
+		return '';
+	}
+
+	return rtrim($normalized, '/');
+}
+
 // Declare PROJECT_ROOT_DIR using the detected installation layout or an explicit override.
 if (!defined('PROJECT_ROOT_DIR')) {
-	$project_root_override = trim((string) ($_ENV['FUSOR_PROJECT_ROOT'] ?? getenv('FUSOR_PROJECT_ROOT') ?: ''));
+	$project_root_override = fusor_bootstrap_project_root_override();
 	if ($project_root_override !== '') {
 		define('PROJECT_ROOT_DIR', rtrim($project_root_override, '/'));
 	} else if (FUSOR_INSTALLATION_CONTEXT === 'vendor') {

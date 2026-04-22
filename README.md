@@ -1,6 +1,6 @@
 # Fusor for FusionPBX
 
-Fusor is an attribute-driven extension layer for FusionPBX. It lets you register event listeners and HTTP lifecycle hooks without patching core files.
+Fusor is an attribute-driven extension layer originally designed for FusionPBX but has grown to allow any just any PHP project. It lets you register event listeners and HTTP lifecycle hooks without patching core files.
 
 It supports four main extension patterns:
 
@@ -9,25 +9,24 @@ It supports four main extension patterns:
 - Switch event listeners handled by the Fusor service (`#[on(event_name: 'switch.*')]`)
 - Optional uopz-backed runtime auto-wiring for ~~constants~~, functions, methods, and runtime helper functions
 
-**This must not be used in a production environment as it is considered a security risk by the creator of FusionPBX.**
+**This must not be used in a production environment as it is considered a security risk because it has not been penetration tested.**
 
 ## Requirements
 
-- FusionPBX 5.6+ (master branch after Apr. 13, 2026)
 - PHP 8.2+
-- Composer (dependencies for `app/fusor`)
+- Composer (dependencies for `fusor`)
 - PHP opcache extension
 - PHP uopz extension (optional, only required for runtime hook and override features)
 - Restarting PHP-FPM
 
 ## Directory Overview
 
-- `app/fusor/bootstrap.php`: loads Fusor and all app bootstrap files (`app/*/*/resources/bootstrap/*.php`) in lexical order
-- `app/fusor/resources/attributes/`: hook attributes (`on`, `http_get`, `http_post`, `on_method`, `on_method_enter`, `on_method_exit`, `on_method_before`, `on_method_after`, `method_around`, `method_replace`, `override_constant`, `runtime_function`)
-- `app/fusor/resources/classes/`: dispatcher, discovery, and optional uopz internals
-- `app/fusor/resources/fusor`: Fusor CLI utility (cache refresh/version/help)
-- `app/fusor/resources/service/fusor.php`: service entrypoint for switch event processing
-- `app/fusor/env-example`: sample Fusor `.env` config
+- `fusor/bootstrap.php`: loads Fusor and all app bootstrap files (`*/bootstrap/*.php`) in lexical order
+- `fusor/resources/attributes/`: hook attributes (`on`, `http_get`, `http_post`, `on_method`, `on_method_enter`, `on_method_exit`, `on_method_before`, `on_method_after`, `method_around`, `method_replace`, ~~`override_constant`~~, `runtime_function`)
+- `fusor/resources/classes/`: dispatcher, discovery, and optional uopz internals
+- `fusor/resources/fusor`: Fusor CLI utility (cache refresh/version/help)
+- `fusor/resources/service/fusor.php`: service entrypoint for switch event processing
+- `fusor/env-example`: sample Fusor `.env` config
 
 ## Quick Start
 
@@ -96,7 +95,7 @@ The mixed case is needed for the Composer author and project name and then the F
 
 ## .ENV File
 
-The auto-loader runs in-memory cached by the PHP opcache extension. PHP opcache is required for the project to work properly as it requires the preload offered by opcache
+The auto-loader runs in-memory cached by the PHP opcache extension and APCu caching techniques. PHP opcache is required for the project to work properly as it requires the preload offered by opcache
 
 Configurable scan paths:
 
