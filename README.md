@@ -1,6 +1,6 @@
 # Fusor for FusionPBX
 
-Fusor is an attribute-driven extension layer originally designed for FusionPBX but has grown to allow any just any PHP project. It lets you register event listeners and HTTP lifecycle hooks without patching core files.
+Fusor is an attribute-driven extension layer originally designed for FusionPBX but has grown to allow any just about any PHP project. It lets you register event listeners and HTTP lifecycle hooks without patching core files.
 
 It supports four main extension patterns:
 
