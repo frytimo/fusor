@@ -15,7 +15,8 @@ scan_path.4 = '/*/*/resources/interfaces/*.php'
 scan_path.5 = '/*/*/resources/traits/*.php'
 scan_path.6 = '/*/*/resources/classes/*.php'
 scan_path.7 = '/*/*/resources/classes/*/*.php'
-scan_path.8 = '/core/authentication/resources/classes/plugins/*.php'
+scan_path.8 = '/*/*/resources/attributes/*.php',
+scan_path.9 = '/core/authentication/resources/classes/plugins/*.php'
 
 ; Enable this only for CLI tests. Keep false in production.
 [http_route_hooks]
