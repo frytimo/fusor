@@ -140,6 +140,10 @@ class auto_loader {
 		$this->traits        = [];
 		$this->attributes    = $this->default_attribute_map();
 
+		// Skip warnings for the Smarty_Autoloader and domain classes
+		$this->missing_class_warnings['Smarty_Autoloader'] = true;
+		$this->missing_class_warnings['domain'] = true;
+
 		if (!$this->load_cache()) {
 			$this->info("No valid autoloader cache found. Building class map from resources.");
 			$this->reload_classes();

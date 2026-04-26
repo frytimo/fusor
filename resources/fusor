@@ -171,7 +171,7 @@ class fusor_cli {
 		self::append_command_option(command_option::new([
 			'short_option' => 'u',
 			'long_option' => 'update-cache',
-			'description' => 'Refresh FusionPBX auto-loader cache (classes, interfaces, inheritance, attributes)',
+			'description' => 'Refresh FusionPBX auto-loader cache (classes, interfaces, inheritance, attributes) and restart PHP-FPM',
 			'short_description' => '-u',
 			'long_description' => '--update-cache',
 			'functions' => ['update_cache'],
@@ -180,7 +180,7 @@ class fusor_cli {
 		self::append_command_option(command_option::new([
 			'short_option' => 'r:',
 			'long_option' => 'rebuild-cache:',
-			'description' => 'Rebuild a specific cache map: all | classes | interfaces | inheritance | attributes | methods  (default: all)',
+			'description' => 'Rebuild a specific cache map: all | classes | interfaces | inheritance | attributes | methods  (default: all), then restart PHP-FPM',
 			'short_description' => '-r [target]',
 			'long_description' => '--rebuild-cache[=target]',
 			'functions' => ['rebuild_cache'],
@@ -233,6 +233,7 @@ class fusor_cli {
 
 		$autoload->update();
 		echo 'Auto-loader cache refreshed.' . PHP_EOL;
+		self::restart_php_fpm();
 		return 0;
 	}
 
@@ -291,7 +292,61 @@ class fusor_cli {
 				exit(1);
 		}
 
+		self::restart_php_fpm();
+
 		return 0;
+	}
+
+	/**
+	 * Restart PHP-FPM to apply cache/bootstrap changes immediately.
+	 * @return void
+	 */
+	protected static function restart_php_fpm(): void {
+		$versioned_service = 'php' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . '-fpm';
+		$service_candidates = [
+			$versioned_service,
+			'php-fpm',
+		];
+
+		$service_candidates = array_values(array_unique(array_filter($service_candidates, static function ($service): bool {
+			return is_string($service) && $service !== '';
+		})));
+
+		foreach ($service_candidates as $service_name) {
+			if (self::run_command(['systemctl', 'is-enabled', $service_name], false) !== 0
+				&& self::run_command(['systemctl', 'is-active', $service_name], false) !== 0) {
+				continue;
+			}
+
+			if (self::run_command(['systemctl', 'restart', $service_name], true) === 0) {
+				echo 'Restarted ' . $service_name . '.' . PHP_EOL;
+				return;
+			}
+		}
+
+		echo 'Warning: unable to restart PHP-FPM automatically. Restart it manually to apply changes.' . PHP_EOL;
+	}
+
+	/**
+	 * Execute a shell command safely without invoking a shell parser.
+	 * @param array<int, string> $args
+	 * @param bool $suppress_output
+	 * @return int Process exit code
+	 */
+	protected static function run_command(array $args, bool $suppress_output): int {
+		$cmd = [];
+		foreach ($args as $arg) {
+			$cmd[] = escapeshellarg($arg);
+		}
+
+		$command = implode(' ', $cmd);
+		if ($suppress_output) {
+			$command .= ' >/dev/null 2>&1';
+		}
+
+		$exit_code = 1;
+		exec($command, $output, $exit_code);
+		return $exit_code;
 	}
 
 	/**
