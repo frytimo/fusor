@@ -15,7 +15,7 @@ It supports four main extension patterns:
 
 - PHP 8.2+
 - Composer (dependencies for `fusor`)
-- PHP opcache extension with both `opcache.preload` and `auto_prepend_file` enabled
+- PHP opcache extension with `opcache.preload`, `opcache.preload_user` and `auto_prepend_file` enabled
 - PHP uopz extension (optional, only required for runtime hook and override features)
 - Restarting PHP-FPM
 
@@ -56,9 +56,9 @@ PHP_INI=/etc/php/$PHP_VERSION/fpm/php.ini
 
 # Enable opcache.preload
 sed -i 's#;opcache.preload=#opcache.preload=/var/www/fusionpbx/app/fusor/bootstrap.php#g' $PHP_INI
+sed -i 's#;opcache.preload_user=#opcache.preload_user=www-data#g' $PHP_INI
 
 # Enable auto_prepend_file
-sed -i 's#;auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php#auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php#g' $PHP_INI
 sed -i 's#^auto_prepend_file = $#auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php#g' $PHP_INI
 
 sudo systemctl restart php$PHP_VERSION-fpm
