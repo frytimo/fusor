@@ -1,6 +1,6 @@
 # Fusor
 
-Fusor is an attribute-driven extension layer originally designed for FusionPBX but has grown to allow any just about any PHP project. It lets you register event listeners and HTTP lifecycle hooks without patching core files.
+Fusor is an attribute-driven extension layer originally designed for FusionPBX but has grown to support just about any PHP project. It lets you register event listeners and HTTP lifecycle hooks without patching core files.
 
 It supports four main extension patterns:
 
@@ -9,7 +9,7 @@ It supports four main extension patterns:
 - Switch event listeners handled by the Fusor service (`#[on(event_name: 'switch.*')]`)
 - Optional uopz-backed runtime auto-wiring for ~~constants~~, functions, methods, and runtime helper functions
 
-**This must not be used in a production environment as it is considered a security risk because it has not been penetration tested.**
+**This must not be used in a production environment as it is considered a security risk because it has not been penetration-tested.**
 
 ## Requirements
 
@@ -51,7 +51,7 @@ composer install
 3. Configure PHP-FPM to autoload Fusor:
 
 ```bash
-PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;"); 
+PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;");
 PHP_INI=/etc/php/$PHP_VERSION/fpm/php.ini
 
 # Enable opcache.preload
@@ -101,14 +101,14 @@ The canonical public namespace is:
 ```php
 use Frytimo\Fusor\resources\classes\fusor_event;
 ```
-The mixed case is needed for the Composer author and project name and then the FusionPBX strict snake_case requirement.
+The mixed case is required by the Composer author and project name convention; the rest follows FusionPBX's strict snake_case requirement.
 
 ## .ENV File
 
 The auto-loader runs with caching provided by PHP opcache (bytecode) and APCu (class map).
 
 **Both PHP settings are required for Fusor to function:**
-- **`opcache.preload`**: Pre-compiles bootstrap.php and auto_loader.php at FPM startup, improving bytecode availability performance
+- **`opcache.preload`**: Pre-compiles bootstrap.php and auto_loader.php at FPM startup, improving performance via bytecode caching
 - **`auto_prepend_file`**: Executes bootstrap.php at the start of every request to register the SPL autoload handler and initialize Fusor
 
 Without `auto_prepend_file`, classes cannot be found because the autoload handler is never registered on incoming requests.
@@ -582,7 +582,7 @@ Useful CLI utility options:
 - `-h` or `--help`
 
 When no option is provided, the utility checks whether the cache has expired (see `cache_expire_time` below)
-and rebuilds automatically if needed, otherwise it performs a full refresh.
+and rebuilds automatically if needed; otherwise, it performs a full refresh.
 
 ### Automatic cache expiry
 
@@ -659,7 +659,7 @@ Systemd unit template exists at:
 
 - uopz support is optional and fail-open by design.
 - If the attribute is present but the extension is missing, disabled, or incomplete, Fusor skips the runtime wiring and writes an error to syslog.
-- This behavior is compatible with opcache and preload, and the bootstrap guards avoid request fatals when request variables are not yet populated.
+- This behavior is compatible with opcache and preload, and the bootstrap guards avoid fatal errors when request variables are not yet populated.
 - Additional examples are documented in [app/fusor/documents/UOPZ_EXAMPLES.md](app/fusor/documents/UOPZ_EXAMPLES.md).
 - For local validation, run:
 
