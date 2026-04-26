@@ -4,7 +4,9 @@
 
 global $autoload;
 
-if (PHP_SAPI === 'cli'
+$allow_cli = filter_var($_ENV['allow_cli'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+if ((!$allow_cli && PHP_SAPI === 'cli')
 		|| empty($_SERVER['SCRIPT_NAME'])
 		|| empty($_SERVER['REQUEST_METHOD'])
 		|| !isset($autoload)

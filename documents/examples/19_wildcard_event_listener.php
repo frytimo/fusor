@@ -21,7 +21,7 @@
  *   '/**\/*'                    — matches any depth (double-star support)
  *
  * DIRECTORY WILDCARD BEHAVIOR:
- *   When the .env setting [fusor_dispatcher] match_directory_on_wildcard=true,
+ *   When the .env setting match_directory_on_wildcard=true,
  *   a pattern like '/core/dashboard/*' also matches '/core/dashboard' itself
  *   (without a trailing segment).
  *

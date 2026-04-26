@@ -5,7 +5,10 @@
 ; force discovery on each request.
 ;  cp .env-example .env
 
-[auto_loader]
+; Project Root
+PROJECT_ROOT=/var/www/fusionpbx
+
+; Auto Loader Settings
 cache=true
 scan_path.0 = '/resources/interfaces/*.php'
 scan_path.1 = '/resources/traits/*.php'
@@ -19,15 +22,33 @@ scan_path.8 = '/*/*/resources/attributes/*.php',
 scan_path.9 = '/core/authentication/resources/classes/plugins/*.php'
 
 ; Enable this only for CLI tests. Keep false in production.
-[http_route_hooks]
 allow_cli=false
 
-[fusor_dispatcher]
+; File cache location for the auto-loader class map.
+; When set, the auto-loader writes its file cache (autoloader_cache.php) to this directory.
+; The directory must be writable by the PHP process user (e.g. www-data).
+; Defaults to sys_get_temp_dir()/fusionpbx_cache when not set.
+; Examples:
+;   auto_loader_cache_path=/var/cache/fusionpbx
+;   auto_loader_cache_path=/dev/shm
+auto_loader_cache_path=
+
+; Cache expiry time in seconds for the file-based auto-loader cache.
+; When the file cache is older than this value the next CLI run (or explicit --rebuild-cache)
+; will trigger a full rebuild automatically.
+; 0 disables time-based expiry (default). Recommended production value: 3600 (1 hour).
+; For APCu cache this value is passed as the TTL to apcu_store, so APCu handles expiry natively.
+cache_expire_time=0
+
+; Auto Loader Debug Logging level: debug | info | notice | warning | error | false
+; true is equivalent to debug (most verbose). false disables auto_loader log output.
+debug_level=false
+
+; Fusor Dispatcher
 ; When true, a listener pattern ending in '/*' also matches the directory path
 ; itself (for example, '/core/dashboard/*' also matches '/core/dashboard').
 match_directory_on_wildcard=true
 
-[fusor_logger]
 ; Log file path for Fusor events and operations.
 ; If not set, only syslog is used.
 ; Set to '/dev/null' to disable file logging.

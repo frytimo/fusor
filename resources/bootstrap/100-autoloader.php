@@ -45,6 +45,7 @@ if (!defined('AUTOLOADER_CLASS_LOADED')) {
 }
 
 // Initialize the autoloader with caching enabled if specified in the environment variables.
-$autoload = new auto_loader($_ENV['auto_loader']['cache'] ?? true);
+global $autoload;
+$autoload = new auto_loader($_ENV['cache'] ?? true);
 
 load_composer_autoloader();

@@ -15,7 +15,7 @@ It supports four main extension patterns:
 
 - PHP 8.2+
 - Composer (dependencies for `fusor`)
-- PHP opcache extension
+- PHP opcache extension with both `opcache.preload` and `auto_prepend_file` enabled
 - PHP uopz extension (optional, only required for runtime hook and override features)
 - Restarting PHP-FPM
 
@@ -50,8 +50,18 @@ composer install
 
 3. Configure PHP-FPM to autoload Fusor:
 
-```
-PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;"); sed -i "s#;opcache.preload=#opcache.preload=/var/www/fusionpbx/app/fusor/bootstrap.php#g" /etc/php/$PHP_VERSION/fpm/php.ini; systemctl restart php$PHP_VERSION-fpm
+```bash
+PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;"); 
+PHP_INI=/etc/php/$PHP_VERSION/fpm/php.ini
+
+# Enable opcache.preload
+sed -i 's#;opcache.preload=#opcache.preload=/var/www/fusionpbx/app/fusor/bootstrap.php#g' $PHP_INI
+
+# Enable auto_prepend_file
+sed -i 's#;auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php#auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php#g' $PHP_INI
+sed -i 's#^auto_prepend_file = $#auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php#g' $PHP_INI
+
+sudo systemctl restart php$PHP_VERSION-fpm
 ```
 
 4. Configure Fusor:
@@ -95,9 +105,15 @@ The mixed case is needed for the Composer author and project name and then the F
 
 ## .ENV File
 
-The auto-loader runs in-memory cached by the PHP opcache extension and APCu caching techniques. PHP opcache is required for the project to work properly as it requires the preload offered by opcache
+The auto-loader runs with caching provided by PHP opcache (bytecode) and APCu (class map).
 
-Configurable scan paths:
+**Both PHP settings are required for Fusor to function:**
+- **`opcache.preload`**: Pre-compiles bootstrap.php and auto_loader.php at FPM startup, improving bytecode availability performance
+- **`auto_prepend_file`**: Executes bootstrap.php at the start of every request to register the SPL autoload handler and initialize Fusor
+
+Without `auto_prepend_file`, classes cannot be found because the autoload handler is never registered on incoming requests.
+
+### Configurable scan paths:
 
 ```ini
 scan_path.0 = '/resources/interfaces/*.php',
@@ -126,8 +142,13 @@ Fusor provides integrated logging through syslog and optional file-based logging
 To additionally log Fusor events to a file, configure the log file path in the `.env` file:
 
 ```ini
-[fusor_logger]
 log_file=/var/log/fusionpbx/fusor.log
+```
+
+Alternatively, set via process environment (takes priority over `.env`):
+
+```bash
+export FUSOR_LOG_FILE=/var/log/fusionpbx/fusor.log
 ```
 
 The logger will create the file if it does not exist (permissions permitting). Each log entry includes a timestamp, priority level, process ID, and message.
@@ -164,6 +185,26 @@ To use only syslog and disable file logging, either:
 
 1. Omit the `log_file` setting in `.env`
 2. Set it to `/dev/null`
+
+### Auto Loader Debug Logging
+
+Configure the logging level from the auto loader with `debug_level` in `.env`:
+
+```ini
+; Auto Loader Debug Logging level: debug | info | notice | warning | error | false
+; true is equivalent to debug (most verbose). false disables auto_loader log output.
+debug_level=false
+```
+
+**Supported levels** (in order of verbosity):
+- `debug` or `true`: Show all messages (debug, info, notice, warning, error)
+- `info`: Show info, notice, warning, error messages
+- `notice`: Show notice, warning, error messages
+- `warning`: Show warning and error messages only
+- `error`: Show errors only
+- `false`: Disable auto_loader logging
+
+Keep this `false` in production. When enabled, messages are written via syslog and optional file logging.
 
 
 The source is prepared with PHPDoc comments so API docs can be regenerated quickly.
@@ -266,7 +307,7 @@ Path matching notes:
 
 Directory wildcard toggle:
 
-- Setting: `[fusor_dispatcher] match_directory_on_wildcard=true|false`
+- Setting: `match_directory_on_wildcard=true|false`
 - Default: `true`
 - When `true`, `/core/dashboard/*` also matches `/core/dashboard`
 - When `false`, `/core/dashboard/*` requires at least one additional segment
@@ -529,11 +570,65 @@ fusor --help
 
 Useful CLI utility options:
 
-- `-u` or `--update-cache` (refresh auto-loader cache)
+- `-u` or `--update-cache` — full rebuild of all cache maps (classes, interfaces, inheritance, attributes)
+- `-r [target]` or `--rebuild-cache[=target]` — rebuild a specific cache map:
+  - `all` (default) — same as `--update-cache`; rebuilds everything
+  - `classes` — rebuild class/interface/inheritance maps only (attribute metadata untouched)
+  - `interfaces` — alias for `classes`
+  - `inheritance` — alias for `classes`
+  - `attributes` — rebuild all attribute metadata only (class maps untouched)
+  - `methods` — rebuild method attribute sub-map only
 - `-v` or `--version`
 - `-h` or `--help`
 
-When no option is provided, the utility refreshes cache by default.
+When no option is provided, the utility checks whether the cache has expired (see `cache_expire_time` below)
+and rebuilds automatically if needed, otherwise it performs a full refresh.
+
+### Automatic cache expiry
+
+Set `cache_expire_time` in `app/fusor/.env` to enable time-based invalidation:
+
+```ini
+; Expire the cache after this many seconds. 0 = never expire automatically.
+cache_expire_time=3600
+```
+
+When `cache_expire_time > 0`:
+
+- **File cache** — the `written_at` timestamp stored in the cache file is compared on each load. An
+  expired cache is discarded and rebuilt on the next request.
+- **APCu cache** — the value is passed as the native TTL to `apcu_store`, so APCu expires the keys
+  automatically without any additional check.
+- **CLI auto-expiry** — every time the `fusor` binary runs (for any reason), if the file cache is
+  older than `cache_expire_time` it is automatically rebuilt before any other operation.
+
+### File cache location
+
+By default, the auto-loader writes its file cache (`autoloader_cache.php`) to `sys_get_temp_dir()/fusionpbx_cache`.
+
+To use a custom location, set `auto_loader_cache_path` in `app/fusor/.env`:
+
+```ini
+auto_loader_cache_path=/var/cache/fusionpbx
+```
+
+The directory must be writable by the PHP process user (typically `www-data`). Create it with the correct permissions before first use:
+
+```bash
+mkdir -p /var/cache/fusionpbx
+chown www-data:www-data /var/cache/fusionpbx
+chmod 750 /var/cache/fusionpbx
+```
+
+If the cache write fails you will see a warning in your log:
+
+```
+[WARNING] [auto_loader] Failed to write temporary autoloader file cache to /path/to/cache/autoloader_cache.php.tmp.
+Check that the directory is writable by the PHP process user.
+```
+
+Use `auto_loader_cache_path` to redirect the cache to a location the web server user can write to.
+
 
 If your FusionPBX root is not `/var/www/fusionpbx`, set `FUSOR_DIR` before running the global command:
 
@@ -593,7 +688,6 @@ The current verified smoke output shows:
 - Set in `app/fusor/.env`:
 
 ```ini
-[http_route_hooks]
 allow_cli=true
 ```
 

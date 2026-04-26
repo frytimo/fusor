@@ -55,12 +55,10 @@ class fusor_logger {
 		}
 
 		// Try $_ENV array from .env parsing (section.key format)
-		if (isset($_ENV['fusor_logger']) && is_array($_ENV['fusor_logger'])) {
-			if (isset($_ENV['fusor_logger']['log_file']) && is_string($_ENV['fusor_logger']['log_file'])) {
-				$path = trim($_ENV['fusor_logger']['log_file']);
-				if ($path !== '' && $path !== '/dev/null') {
-					return $path;
-				}
+		if (isset($_ENV['log_file']) && is_string($_ENV['log_file'])) {
+			$path = trim($_ENV['log_file']);
+			if ($path !== '' && $path !== '/dev/null') {
+				return $path;
 			}
 		}
 

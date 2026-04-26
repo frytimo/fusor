@@ -86,7 +86,22 @@ class fusor_cli {
 	public static function run(): int {
 		self::parse_command_options();
 
-		if (empty(self::$parsed_command_options)) {
+		if (self::$should_exit) {
+			return 0;
+		}
+
+		// When no explicit cache rebuild was requested, auto-rebuild if the cache is expired.
+		if (!isset(self::$parsed_command_options['rebuild-cache'], self::$parsed_command_options['r'])) {
+			global $autoload;
+			$loader = (isset($autoload) && $autoload instanceof auto_loader) ? $autoload : new auto_loader();
+			if ($loader->is_cache_expired()) {
+				echo 'Cache expired. Rebuilding automatically.' . PHP_EOL;
+				$loader->update();
+				echo 'Auto-loader cache refreshed.' . PHP_EOL;
+			}
+		}
+
+		if (empty(self::$parsed_command_options) && !self::$should_exit) {
 			return self::update_cache();
 		}
 
@@ -161,6 +176,15 @@ class fusor_cli {
 			'long_description' => '--update-cache',
 			'functions' => ['update_cache'],
 		]));
+
+		self::append_command_option(command_option::new([
+			'short_option' => 'r:',
+			'long_option' => 'rebuild-cache:',
+			'description' => 'Rebuild a specific cache map: all | classes | interfaces | inheritance | attributes | methods  (default: all)',
+			'short_description' => '-r [target]',
+			'long_description' => '--rebuild-cache[=target]',
+			'functions' => ['rebuild_cache'],
+		]));
 	}
 
 	/**
@@ -209,6 +233,64 @@ class fusor_cli {
 
 		$autoload->update();
 		echo 'Auto-loader cache refreshed.' . PHP_EOL;
+		return 0;
+	}
+
+	/**
+	 * Rebuild a specific cache target.
+	 *
+	 * Accepted target values (case-insensitive):
+	 *   all          – full rebuild: classes, interfaces, inheritance, and attributes (default)
+	 *   classes      – class / interface / inheritance maps only (no attribute re-scan)
+	 *   interfaces   – alias for 'classes' (interface map is derived from the same scan)
+	 *   inheritance  – alias for 'classes' (inheritance map is derived from the same scan)
+	 *   attributes   – attribute metadata only (all attribute targets)
+	 *   methods      – method attribute sub-map only
+	 *
+	 * @param string $target
+	 * @return int
+	 */
+	protected static function rebuild_cache(string $target = ''): int {
+		global $autoload;
+
+		if (!isset($autoload) || !$autoload instanceof auto_loader) {
+			$autoload = new auto_loader();
+		}
+
+		$target = strtolower(trim($target));
+		if ($target === '') {
+			$target = 'all';
+		}
+
+		switch ($target) {
+			case 'all':
+				$autoload->update();
+				echo 'Auto-loader cache fully rebuilt (classes, interfaces, inheritance, attributes).' . PHP_EOL;
+				break;
+
+			case 'classes':
+			case 'interfaces':
+			case 'inheritance':
+				$autoload->rebuild_classes_cache();
+				echo "Auto-loader class/interface/inheritance map rebuilt (attributes unchanged)." . PHP_EOL;
+				break;
+
+			case 'attributes':
+				$autoload->rebuild_attributes_cache(false);
+				echo 'Auto-loader attribute cache rebuilt (all attribute targets).' . PHP_EOL;
+				break;
+
+			case 'methods':
+				$autoload->rebuild_attributes_cache(true);
+				echo 'Auto-loader method attribute cache rebuilt.' . PHP_EOL;
+				break;
+
+			default:
+				$valid = implode(', ', ['all', 'classes', 'interfaces', 'inheritance', 'attributes', 'methods']);
+				echo "Unknown rebuild target '$target'. Valid targets: $valid" . PHP_EOL;
+				exit(1);
+		}
+
 		return 0;
 	}
 
@@ -278,7 +360,7 @@ class fusor_cli {
 	protected static function call_function(string $function, $value): void {
 		if (method_exists(static::class, $function)) {
 			$method = new ReflectionMethod(static::class, $function);
-			if ($method->getNumberOfRequiredParameters() > 0) {
+			if ($method->getNumberOfParameters() > 0) {
 				static::$function((string) $value);
 			} else {
 				static::$function();

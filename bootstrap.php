@@ -35,12 +35,17 @@ function fusor_bootstrap_project_root_override(): string {
 		return '';
 	}
 
-	$bootstrap_paths = $parsed['bootstrap_paths'] ?? null;
-	if (!is_array($bootstrap_paths)) {
-		return '';
+	// Flat format (current): PROJECT_ROOT=/var/www/fusionpbx
+	$project_root = $parsed['PROJECT_ROOT'] ?? $parsed['project_root'] ?? null;
+
+	// Sectioned format (legacy): [bootstrap_paths] PROJECT_ROOT=...
+	if (!is_scalar($project_root)) {
+		$bootstrap_paths = $parsed['bootstrap_paths'] ?? null;
+		if (is_array($bootstrap_paths)) {
+			$project_root = $bootstrap_paths['PROJECT_ROOT'] ?? $bootstrap_paths['project_root'] ?? null;
+		}
 	}
 
-	$project_root = $bootstrap_paths['PROJECT_ROOT'] ?? $bootstrap_paths['project_root'] ?? null;
 	if (!is_scalar($project_root)) {
 		return '';
 	}

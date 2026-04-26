@@ -1,29 +1,29 @@
 <?php
 
 /*
-  FusionPBX
-  Version: MPL 1.1
-
-  The contents of this file are subject to the Mozilla Public License Version
-  1.1 (the "License"); you may not use this file except in compliance with
-  the License. You may obtain a copy of the License at
-  http://www.mozilla.org/MPL/
-
-  Software distributed under the License is distributed on an "AS IS" basis,
-  WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-  for the specific language governing rights and limitations under the
-  License.
-
-  The Original Code is FusionPBX
-
-  The Initial Developer of the Original Code is
-  Mark J Crane <markjcrane@fusionpbx.com>
-  Portions created by the Initial Developer are Copyright (C) 2008-2024
-  the Initial Developer. All Rights Reserved.
-
-  Contributor(s):
-  Mark J Crane <markjcrane@fusionpbx.com>
-  Tim Fry <tim@fusionpbx.com>
+ * FusionPBX
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is FusionPBX
+ *
+ * The Initial Developer of the Original Code is
+ * Mark J Crane <markjcrane@fusionpbx.com>
+ * Portions created by the Initial Developer are Copyright (C) 2008-2024
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ * Mark J Crane <markjcrane@fusionpbx.com>
+ * Tim Fry <tim@fusionpbx.com>
  */
 
 /**
@@ -34,77 +34,95 @@
  * - debug=true is appended to the url
  */
 class auto_loader {
-
-	const CLASSES_KEY = 'autoloader_classes';
-	const CLASSES_FILE = 'autoloader_cache.php';
-	const INTERFACES_KEY = "autoloader_interfaces";
-	const INTERFACES_FILE = "autoloader_interface_cache.php";
-	const INHERITANCE_KEY = "autoloader_inheritance";
-	const INHERITANCE_FILE = "autoloader_inheritance_cache.php";
-	const ATTRIBUTES_KEY = 'autoloader_attributes';
-	const ATTRIBUTES_FILE = 'autoloader_attributes_cache.php';
+	const CLASSES_KEY       = 'autoloader_classes';
+	const CLASSES_FILE      = 'autoloader_cache.php';
+	const INTERFACES_KEY    = "autoloader_interfaces";
+	const INTERFACES_FILE   = "autoloader_interface_cache.php";
+	const INHERITANCE_KEY   = "autoloader_inheritance";
+	const INHERITANCE_FILE  = "autoloader_inheritance_cache.php";
+	const ATTRIBUTES_KEY    = 'autoloader_attributes';
+	const ATTRIBUTES_FILE   = 'autoloader_attributes_cache.php';
 	const CACHE_VERSION_KEY = 'autoloader_cache_version';
-	const CACHE_VERSION = 7;
+	const CACHE_VERSION     = 7;
+
 	/**
 	 * Cache path and file name for classes
 	 *
 	 * @var string
 	 */
 	private static $classes_file = null;
+
 	/**
 	 * Cache path and file name for interfaces
 	 *
 	 * @var string
 	 */
 	private static $interfaces_file = null;
+
 	/**
 	 * Cache path and file name for inheritance
 	 *
 	 * @var string
 	 */
 	private static $inheritance_file = null;
+
 	/**
 	 * Cache path and file name for attributes
 	 *
 	 * @var string
 	 */
 	private static $attributes_file = null;
+
 	private $classes;
+
 	/**
 	 * Tracks the APCu extension for caching to RAM drive across requests
 	 *
 	 * @var bool
 	 */
 	private $apcu_enabled;
+
 	/**
 	 * Maps interfaces to classes
 	 *
 	 * @var array
 	 */
 	private $interfaces;
+
 	/**
 	 * Maps classes/interfaces to their parent class/interface
 	 *
 	 * @var array
 	 */
 	private $inheritance;
+
 	/**
 	 * @var array
 	 */
 	private $traits;
+
 	/**
 	 * Maps declaration targets to discovered attributes.
 	 *
 	 * @var array
 	 */
 	private $attributes;
+
 	/**
 	 * Parsed settings from app/fusor/.env.
 	 *
 	 * @var array|null
 	 */
 	private $env_settings = null;
+
 	private bool $cache_enabled = false;
+
+	/**
+	 * Tracks missing class warnings to avoid repeated per-request log spam.
+	 *
+	 * @var array<string,bool>
+	 */
+	private array $missing_class_warnings = [];
 
 	/**
 	 * Initializes the class and primes the APCu-backed cache when available.
@@ -115,14 +133,15 @@ class auto_loader {
 		openlog("PHP", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 
 		$this->cache_enabled = (bool) $cache;
-		$this->apcu_enabled = $this->cache_enabled && self::is_apcu_available();
-		$this->classes = [];
-		$this->interfaces = [];
-		$this->inheritance = [];
-		$this->traits = [];
-		$this->attributes = $this->default_attribute_map();
+		$this->apcu_enabled  = $this->cache_enabled && self::is_apcu_available();
+		$this->classes       = [];
+		$this->interfaces    = [];
+		$this->inheritance   = [];
+		$this->traits        = [];
+		$this->attributes    = $this->default_attribute_map();
 
 		if (!$this->load_cache()) {
+			$this->info("No valid autoloader cache found. Building class map from resources.");
 			$this->reload_classes();
 			$this->rebuild_traits_from_classes();
 			$this->update_cache();
@@ -132,12 +151,13 @@ class auto_loader {
 		$this->debug("Attributes: " . implode(', ', array_keys($this->attributes['method'] ?? [])));
 		$this->info("auto_loader initialized with " . count($this->classes) . " classes, " . count($this->interfaces) . " interfaces, " . count($this->traits) . " traits, and " . count($this->attributes) . " attributes.");
 		spl_autoload_register([$this, 'loader']);
-		$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5);
-		$this->debug("Autoloader registered at " . ($backtrace[0]['file'] ?? 'unknown file') . ":" . ($backtrace[0]['line'] ?? 'unknown line'));
+		if (self::is_log_level_enabled(LOG_DEBUG)) {
+			$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5);
+			$this->debug("Autoloader registered at " . ($backtrace[0]['file'] ?? 'unknown file') . ":" . ($backtrace[0]['line'] ?? 'unknown line'));
+		}
 	}
 
-	public function __destruct()
-	{
+	public function __destruct() {
 		try {
 			spl_autoload_unregister([$this, 'loader']);
 		} catch (\Throwable $t) {
@@ -150,13 +170,49 @@ class auto_loader {
 	}
 
 	/**
-	 * Logs a message at the specified level
+	 * Logs a message at the specified level.
 	 *
-	 * @param int    $level   The log level (e.g. E_ERROR)
+	 * When `log_file` is set in the environment the message is appended to that file
+	 * in addition to being sent to syslog. The log file path is resolved once per
+	 * process and cached in a static variable.
+	 *
+	 * @param int    $level   The log level (e.g. LOG_WARNING)
 	 * @param string $message The log message
 	 */
 	private static function log(int $level, string $message): void {
-		syslog($level, "[auto_loader] " . $message);
+		$formatted = "[auto_loader] " . $message;
+		syslog($level, $formatted);
+
+		$log_file = trim((string) ($_ENV['log_file'] ?? ''));
+		if ($log_file === '') {
+			return;
+		}
+
+		$level_label = match ($level) {
+			LOG_DEBUG   => 'DEBUG',
+			LOG_INFO    => 'INFO',
+			LOG_NOTICE  => 'NOTICE',
+			LOG_WARNING => 'WARNING',
+			LOG_ERR     => 'ERROR',
+			LOG_CRIT    => 'CRITICAL',
+			default     => 'LOG',
+		};
+
+		$line = date('Y-m-d H:i:s') . " [{$level_label}] {$formatted}" . PHP_EOL;
+		@file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX);
+	}
+
+	/**
+	 * Returns true when the provided log level should be emitted.
+	 *
+	 * @param int $level Syslog level constant
+	 *
+	 * @return bool
+	 */
+	private static function is_log_level_enabled(int $level): bool {
+		$threshold = self::get_log_level_threshold();
+
+		return $threshold !== null && $level <= $threshold;
 	}
 
 	/**
@@ -173,10 +229,11 @@ class auto_loader {
 			return apcu_enabled();
 		}
 
-		$apc_enabled = filter_var((string) ini_get('apc.enabled'), FILTER_VALIDATE_BOOLEAN);
+		$apc_enabled     = filter_var((string) ini_get('apc.enabled'), FILTER_VALIDATE_BOOLEAN);
 		$apc_cli_enabled = PHP_SAPI !== 'cli' || filter_var((string) ini_get('apc.enable_cli'), FILTER_VALIDATE_BOOLEAN);
 
 		self::notice("APCu availability: apc.enabled=" . ($apc_enabled ? 'true' : 'false') . ", apc.enable_cli=" . ($apc_cli_enabled ? 'true' : 'false'));
+
 		return $apc_enabled && $apc_cli_enabled;
 	}
 
@@ -186,52 +243,117 @@ class auto_loader {
 	 * @return bool True when a valid cache entry was loaded.
 	 */
 	public function load_cache(): bool {
-		$this->classes = [];
-		$this->interfaces = [];
+		$this->classes     = [];
+		$this->interfaces  = [];
 		$this->inheritance = [];
-		$this->traits = [];
-		$this->attributes = $this->default_attribute_map();
+		$this->traits      = [];
+		$this->attributes  = $this->default_attribute_map();
 
-		if (!$this->cache_enabled || !$this->apcu_enabled) {
+		if (!$this->cache_enabled) {
 			return false;
 		}
 
-		$cache_version = apcu_fetch(self::CACHE_VERSION_KEY, $version_cached);
-		$this->classes = apcu_fetch(self::CLASSES_KEY, $classes_cached);
-		$this->interfaces = apcu_fetch(self::INTERFACES_KEY, $interfaces_cached);
+		if (!$this->apcu_enabled) {
+			return $this->load_file_cache();
+		}
+
+		$cache_version     = apcu_fetch(self::CACHE_VERSION_KEY, $version_cached);
+		$this->classes     = apcu_fetch(self::CLASSES_KEY, $classes_cached);
+		$this->interfaces  = apcu_fetch(self::INTERFACES_KEY, $interfaces_cached);
 		$this->inheritance = apcu_fetch(self::INHERITANCE_KEY, $inheritance_cached);
-		$this->attributes = apcu_fetch(self::ATTRIBUTES_KEY, $attributes_cached);
+		$this->attributes  = apcu_fetch(self::ATTRIBUTES_KEY, $attributes_cached);
 
 		if (!$version_cached || !$classes_cached || !$interfaces_cached || !$inheritance_cached || !$attributes_cached) {
-			$this->classes = [];
-			$this->interfaces = [];
+			$this->classes     = [];
+			$this->interfaces  = [];
 			$this->inheritance = [];
-			$this->attributes = $this->default_attribute_map();
+			$this->attributes  = $this->default_attribute_map();
+
 			return false;
 		}
 
 		if ($cache_version !== self::CACHE_VERSION) {
 			$this->notice("Autoloader APCu cache version mismatch. Rebuilding.");
 			self::clear_cache();
-			$this->classes = [];
-			$this->interfaces = [];
+			$this->classes     = [];
+			$this->interfaces  = [];
 			$this->inheritance = [];
-			$this->attributes = $this->default_attribute_map();
+			$this->attributes  = $this->default_attribute_map();
+
 			return false;
 		}
 
 		if (!is_array($this->classes) || !is_array($this->interfaces) || !is_array($this->inheritance) || !is_array($this->attributes) || empty($this->classes)) {
 			$this->warning("Autoloader APCu cache failed validation. Rebuilding.");
 			self::clear_cache();
-			$this->classes = [];
-			$this->interfaces = [];
+			$this->classes     = [];
+			$this->interfaces  = [];
 			$this->inheritance = [];
-			$this->attributes = $this->default_attribute_map();
+			$this->attributes  = $this->default_attribute_map();
+
 			return false;
 		}
 
 		$this->attributes = array_replace($this->default_attribute_map(), $this->attributes);
 		$this->rebuild_traits_from_classes();
+		$this->debug("Autoloader APCu cache loaded: " . count($this->classes) . " classes, " . count($this->interfaces) . " interfaces, " . count($this->attributes['method'] ?? []) . " method attributes.");
+
+		return true;
+	}
+
+	/**
+	 * Loads class metadata cache from filesystem when APCu is unavailable.
+	 *
+	 * @return bool True when a valid cache entry was loaded.
+	 */
+	private function load_file_cache(): bool {
+		$cache_file = self::get_file_cache_path(self::CLASSES_FILE);
+		if ($cache_file === '' || !is_file($cache_file)) {
+			return false;
+		}
+
+		$payload = @include $cache_file;
+		if (!is_array($payload)) {
+			return false;
+		}
+
+		$cache_version = $payload['version'] ?? null;
+		$classes       = $payload['classes'] ?? null;
+		$interfaces    = $payload['interfaces'] ?? null;
+		$inheritance   = $payload['inheritance'] ?? null;
+		$attributes    = $payload['attributes'] ?? null;
+
+		if ($cache_version !== self::CACHE_VERSION) {
+			$this->notice("Autoloader file cache version mismatch. Rebuilding.");
+			self::clear_file_cache();
+
+			return false;
+		}
+
+		if (!is_array($classes) || !is_array($interfaces) || !is_array($inheritance) || !is_array($attributes) || empty($classes)) {
+			$this->warning("Autoloader file cache failed validation. Rebuilding.");
+			self::clear_file_cache();
+
+			return false;
+		}
+
+		$expire_secs = (int) ($_ENV['cache_expire_time'] ?? 0);
+		if ($expire_secs > 0) {
+			$written_at = (int) ($payload['written_at'] ?? 0);
+			if ($written_at > 0 && (time() - $written_at) > $expire_secs) {
+				$this->notice("Autoloader file cache expired (age " . (time() - $written_at) . "s > {$expire_secs}s). Rebuilding.");
+				self::clear_file_cache();
+
+				return false;
+			}
+		}
+
+		$this->classes     = $classes;
+		$this->interfaces  = $interfaces;
+		$this->inheritance = $inheritance;
+		$this->attributes  = array_replace($this->default_attribute_map(), $attributes);
+		$this->rebuild_traits_from_classes();
+		$this->debug("Autoloader file cache loaded from $cache_file: " . count($this->classes) . " classes, " . count($this->interfaces) . " interfaces, " . count($this->attributes['method'] ?? []) . " method attributes.");
 
 		return true;
 	}
@@ -243,28 +365,40 @@ class auto_loader {
 	 * and updates the internal storage of classes and interfaces. It also processes
 	 * implementation relationships between classes and interfaces.
 	 *
+	 * @param bool $include_attributes When false, attribute metadata parsing is skipped.
+	 *
 	 * @return void
 	 */
-	public function reload_classes() {
-		//set project path using magic dir constant
+	public function reload_classes(bool $include_attributes = true): void {
+		// set project path using magic dir constant
 		$project_path = defined('PROJECT_ROOT_DIR') ? PROJECT_ROOT_DIR : dirname(__DIR__, 4);
-		$scan_paths = $_ENV['auto_loader']['scan_path'] ?? [];
+		$scan_paths   = $_ENV['scan_path'] ?? [];
 
-		//get all php files for each path
+		if (empty($scan_paths) || !is_array($scan_paths)) {
+			$this->error("No scan paths defined for auto_loader. Check the environment settings.");
+
+			return;
+		}
+
+		// get all php files for each path
 		$files = [];
 		foreach ($scan_paths as $path) {
 			$files = array_merge($files, glob($project_path . $path));
 		}
 
-		//reset the current array
-		$class_list = [];
+		// reset the current array
+		$class_list   = [];
 		$this->traits = [];
-		$this->attributes = $this->default_attribute_map();
+		if ($include_attributes) {
+			$this->attributes = $this->default_attribute_map();
+		}
 
-		//store the class name (key) and the path (value)
+		// store the class name (key) and the path (value)
 		foreach ($files as $file) {
-			//index attributes declared on classes, methods, properties, and constants
-			$this->parse_attribute_file($file);
+			// index attributes declared on classes, methods, properties, and constants
+			if ($include_attributes) {
+				$this->parse_attribute_file($file);
+			}
 
 			$file_content = file_get_contents($file);
 
@@ -285,7 +419,6 @@ class auto_loader {
 
 			if (preg_match_all($pattern, $file_content, $matches, PREG_SET_ORDER)) {
 				foreach ($matches as $match) {
-
 					// "class", "interface", or "trait"
 					$type = $match[1];
 
@@ -293,21 +426,21 @@ class auto_loader {
 					$name = trim($match[2], " \n\r\t\v\x00\\");
 
 					// Combine the namespace and name
-					$full_name = $namespace . $name;
+					$full_name       = $namespace . $name;
 					$lower_full_name = strtolower($full_name);
 
 					// Store the class/interface/trait with its file overwriting any existing declaration.
-					$this->classes[$full_name] = $file;
+					$this->classes[$full_name]       = $file;
 					$this->classes[$lower_full_name] = $file;
 					if ($type === 'trait') {
-						$this->traits[$full_name] = $file;
+						$this->traits[$full_name]       = $file;
 						$this->traits[$lower_full_name] = $file;
 					}
 
 					// Track inheritance (what this class/interface extends)
 					if (isset($match[3]) && trim($match[3]) !== '') {
-						$parent_name = trim($match[3], " \n\r\t\v\x00\\");
-						$this->inheritance[$full_name] = $parent_name;
+						$parent_name                         = trim($match[3], " \n\r\t\v\x00\\");
+						$this->inheritance[$full_name]       = $parent_name;
 						$this->inheritance[$lower_full_name] = $parent_name;
 					}
 
@@ -316,7 +449,7 @@ class auto_loader {
 						// Split the interface list by commas.
 						$interface_list = explode(',', $match[4]);
 						foreach ($interface_list as $interface) {
-							$interface_name = trim($interface, " \n\r\t\v\x00\\");
+							$interface_name       = trim($interface, " \n\r\t\v\x00\\");
 							$lower_interface_name = strtolower($interface_name);
 							// Check that it is declared as an array so we can record the classes
 							if (empty($this->interfaces[$interface_name])) {
@@ -338,7 +471,6 @@ class auto_loader {
 					}
 				}
 			} else {
-
 				//
 				// When the file is in the classes|interfaces|traits folder then
 				// we must assume it is a valid class as IonCube will encode the
@@ -358,9 +490,6 @@ class auto_loader {
 				}
 			}
 		}
-
-		//scan explicit attribute metadata files (IonCube compatible)
-		$this->reload_attributes($scan_paths);
 	}
 
 	/**
@@ -392,19 +521,27 @@ class auto_loader {
 			return false;
 		}
 
-		if (!$this->cache_enabled || !$this->apcu_enabled) {
+		if (!$this->cache_enabled) {
 			return true;
 		}
 
+		if (!$this->apcu_enabled) {
+			return $this->update_file_cache();
+		}
+
+		$expire_secs = (int) ($_ENV['cache_expire_time'] ?? 0);
+		$ttl         = $expire_secs > 0 ? $expire_secs : 0;
+
 		$result = apcu_store([
 			self::CACHE_VERSION_KEY => self::CACHE_VERSION,
-			self::CLASSES_KEY => $this->classes,
-			self::INTERFACES_KEY => $this->interfaces,
-			self::INHERITANCE_KEY => $this->inheritance,
-			self::ATTRIBUTES_KEY => $this->attributes,
-		], null, 0);
+			self::CLASSES_KEY       => $this->classes,
+			self::INTERFACES_KEY    => $this->interfaces,
+			self::INHERITANCE_KEY   => $this->inheritance,
+			self::ATTRIBUTES_KEY    => $this->attributes,
+		], null, $ttl);
 
 		if ($result === true || (is_array($result) && empty($result))) {
+			$this->debug("Autoloader APCu cache written: " . count($this->classes) . " classes, " . count($this->interfaces) . " interfaces, " . count($this->attributes['method'] ?? []) . " method attributes" . ($ttl > 0 ? ", TTL={$ttl}s" : ", no TTL") . ".");
 			return true;
 		}
 
@@ -414,46 +551,207 @@ class auto_loader {
 		return false;
 	}
 
+	/**
+	 * Updates filesystem cache when APCu is unavailable.
+	 *
+	 * @return bool
+	 */
+	private function update_file_cache(): bool {
+		$cache_file = self::get_file_cache_path(self::CLASSES_FILE);
+		if ($cache_file === '') {
+			return true;
+		}
+
+		$cache_dir = dirname($cache_file);
+		if (!is_dir($cache_dir) && !@mkdir($cache_dir, 0775, true) && !is_dir($cache_dir)) {
+			$this->warning("Failed to create autoloader cache directory at $cache_dir.");
+
+			return false;
+		}
+
+		$payload = [
+			'version'     => self::CACHE_VERSION,
+			'written_at'  => time(),
+			'classes'     => $this->classes,
+			'interfaces'  => $this->interfaces,
+			'inheritance' => $this->inheritance,
+			'attributes'  => $this->attributes,
+		];
+
+		$php_cache = "<?php\nreturn " . var_export($payload, true) . ";\n";
+		$temp_file = $cache_file . '.tmp';
+		if (@file_put_contents($temp_file, $php_cache, LOCK_EX) === false) {
+			$this->warning("Failed to write temporary autoloader file cache to $temp_file. Check that the directory is writable by the PHP process user.");
+			@unlink($temp_file);
+
+			return false;
+		}
+
+		if (!@rename($temp_file, $cache_file)) {
+			$this->warning("Failed to finalize autoloader file cache write.");
+			@unlink($temp_file);
+
+			return false;
+		}
+
+		$this->debug("Autoloader file cache written to $cache_file: " . count($this->classes) . " classes, " . count($this->interfaces) . " interfaces, " . count($this->attributes['method'] ?? []) . " method attributes.");
+
+		return true;
+	}
+
+	/**
+	 * Returns the configured log level threshold, or null when logging is disabled.
+	 *
+	 * Supported values for $_ENV['debug_level']:
+	 *   false / 0 / ''  → disabled
+	 *   true  / 1       → debug (most verbose, same as 'debug')
+	 *   debug           → LOG_DEBUG  (7) — show all messages
+	 *   info            → LOG_INFO   (6) — show info, notice, warning, error
+	 *   notice          → LOG_NOTICE (5) — show notice, warning, error
+	 *   warning         → LOG_WARNING(4) — show warning, error
+	 *   error           → LOG_ERR    (3) — show errors only
+	 *
+	 * @return int|null
+	 */
+	private static function get_log_level_threshold(): ?int {
+		static $threshold_cache = 'unset';
+		if ($threshold_cache !== 'unset') {
+			return $threshold_cache;
+		}
+
+		$setting = strtolower(trim((string) ($_ENV['debug_level'] ?? '')));
+
+		$threshold_cache = match ($setting) {
+			'', 'false', '0' => null,
+			'true', '1'      => LOG_DEBUG,
+			'debug'          => LOG_DEBUG,
+			'info'           => LOG_INFO,
+			'notice'         => LOG_NOTICE,
+			'warning'        => LOG_WARNING,
+			'error'          => LOG_ERR,
+			default          => null,
+		};
+
+		return $threshold_cache;
+	}
+
 	public static function debug(string $message): void {
-		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+		if (self::is_log_level_enabled(LOG_DEBUG)) {
 			self::log(LOG_DEBUG, $message);
 		}
 	}
 
 	public static function info(string $message): void {
-		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+		if (self::is_log_level_enabled(LOG_INFO)) {
 			self::log(LOG_INFO, $message);
 		}
 	}
 
 	public static function error(string $message): void {
-		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+		if (self::is_log_level_enabled(LOG_ERR)) {
 			self::log(LOG_ERR, $message);
 		}
 	}
 
 	public static function warning(string $message): void {
-		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+		if (self::is_log_level_enabled(LOG_WARNING)) {
 			self::log(LOG_WARNING, $message);
 		}
 	}
 
 	public static function notice(string $message): void {
-		if (filter_var($_ENV['auto_loader']['debug'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+		if (self::is_log_level_enabled(LOG_NOTICE)) {
 			self::log(LOG_NOTICE, $message);
 		}
 	}
 
 	/**
-	 * Rebuilds internal state and refreshes the APCu cache.
+	 * Rebuilds all cached maps (classes, interfaces, inheritance, attributes) and flushes the cache.
 	 *
 	 * @return void
 	 */
-	public function update() {
+	public function update(): void {
 		self::clear_cache();
 		$this->reload_classes();
 		$this->rebuild_traits_from_classes();
 		$this->update_cache();
+	}
+
+	/**
+	 * Rebuilds only the class, interface, and inheritance maps without touching attribute metadata.
+	 *
+	 * @return void
+	 */
+	public function rebuild_classes_cache(): void {
+		$this->classes     = [];
+		$this->interfaces  = [];
+		$this->inheritance = [];
+		$this->traits      = [];
+		$this->reload_classes(false);
+		$this->rebuild_traits_from_classes();
+		$this->update_cache();
+	}
+
+	/**
+	 * Rebuilds only attribute metadata by re-scanning all files, leaving class/interface/inheritance maps intact.
+	 *
+	 * @param bool $methods_only When true only the method attribute sub-map is rebuilt, leaving all other
+	 *                           attribute targets (class, property, constant, etc.) intact.
+	 *
+	 * @return void
+	 */
+	public function rebuild_attributes_cache(bool $methods_only = false): void {
+		$project_path = defined('PROJECT_ROOT_DIR') ? PROJECT_ROOT_DIR : dirname(__DIR__, 4);
+		$scan_paths   = $_ENV['scan_path'] ?? [];
+
+		if (empty($scan_paths) || !is_array($scan_paths)) {
+			$this->error("No scan paths defined for auto_loader. Check the environment settings.");
+
+			return;
+		}
+
+		$files = [];
+		foreach ($scan_paths as $path) {
+			$files = array_merge($files, glob($project_path . $path));
+		}
+
+		if ($methods_only) {
+			$this->attributes['method'] = [];
+		} else {
+			$this->attributes = $this->default_attribute_map();
+		}
+
+		foreach (array_unique($files) as $file) {
+			$this->parse_attribute_file($file);
+		}
+
+		$this->update_cache();
+	}
+
+	/**
+	 * Returns true when the file cache is older than the configured cache_expire_time threshold.
+	 * Always returns false when cache_expire_time is 0 (disabled).
+	 *
+	 * @return bool
+	 */
+	public function is_cache_expired(): bool {
+		$expire_secs = (int) ($_ENV['cache_expire_time'] ?? 0);
+		if ($expire_secs <= 0) {
+			return false;
+		}
+
+		$cache_file = self::get_file_cache_path(self::CLASSES_FILE);
+		if ($cache_file === '' || !is_file($cache_file)) {
+			// No file cache — APCu handles its own TTL; treat as not expired
+			return false;
+		}
+
+		$mtime = @filemtime($cache_file);
+		if ($mtime === false) {
+			return true;
+		}
+
+		return (time() - $mtime) > $expire_secs;
 	}
 
 	/**
@@ -462,19 +760,102 @@ class auto_loader {
 	 * @return void
 	 */
 	public static function clear_cache() {
-		if (!self::is_apcu_available()) {
-			self::notice("Autoloader cache clear skipped because APCu is unavailable.");
-			return;
+		if (self::is_apcu_available()) {
+			apcu_delete([
+				self::CACHE_VERSION_KEY,
+				self::CLASSES_KEY,
+				self::INTERFACES_KEY,
+				self::INHERITANCE_KEY,
+				self::ATTRIBUTES_KEY,
+			]);
+			self::notice("Autoloader APCu cache cleared.");
+		} else {
+			self::notice("Autoloader APCu cache clear skipped because APCu is unavailable.");
 		}
 
-		apcu_delete([
-			self::CACHE_VERSION_KEY,
-			self::CLASSES_KEY,
-			self::INTERFACES_KEY,
-			self::INHERITANCE_KEY,
-			self::ATTRIBUTES_KEY,
-		]);
-		self::notice("Autoloader APCu cache cleared.");
+		self::clear_file_cache();
+	}
+
+	/**
+	 * Clears the file-based autoloader cache.
+	 *
+	 * @return void
+	 */
+	private static function clear_file_cache(): void {
+		foreach (self::get_file_cache_paths() as $cache_file) {
+			if (is_string($cache_file) && $cache_file !== '' && is_file($cache_file)) {
+				@unlink($cache_file);
+			}
+		}
+		self::notice("Autoloader file cache cleared.");
+	}
+
+	/**
+	 * Returns all configured cache file paths.
+	 *
+	 * @return array<string,string>
+	 */
+	private static function get_file_cache_paths(): array {
+		if (self::$classes_file !== null) {
+			return [
+				'classes'     => self::$classes_file,
+				'interfaces'  => self::$interfaces_file,
+				'inheritance' => self::$inheritance_file,
+				'attributes'  => self::$attributes_file,
+			];
+		}
+
+		$cache_dir              = self::get_file_cache_directory();
+		self::$classes_file     = $cache_dir . '/' . self::CLASSES_FILE;
+		self::$interfaces_file  = $cache_dir . '/' . self::INTERFACES_FILE;
+		self::$inheritance_file = $cache_dir . '/' . self::INHERITANCE_FILE;
+		self::$attributes_file  = $cache_dir . '/' . self::ATTRIBUTES_FILE;
+
+		return [
+			'classes'     => self::$classes_file,
+			'interfaces'  => self::$interfaces_file,
+			'inheritance' => self::$inheritance_file,
+			'attributes'  => self::$attributes_file,
+		];
+	}
+
+	/**
+	 * Returns one cache file path by filename constant.
+	 *
+	 * @param string $file_name
+	 *
+	 * @return string
+	 */
+	private static function get_file_cache_path(string $file_name): string {
+		$cache_files = self::get_file_cache_paths();
+		if ($file_name === self::CLASSES_FILE) {
+			return $cache_files['classes'] ?? '';
+		}
+		if ($file_name === self::INTERFACES_FILE) {
+			return $cache_files['interfaces'] ?? '';
+		}
+		if ($file_name === self::INHERITANCE_FILE) {
+			return $cache_files['inheritance'] ?? '';
+		}
+		if ($file_name === self::ATTRIBUTES_FILE) {
+			return $cache_files['attributes'] ?? '';
+		}
+
+		return '';
+	}
+
+	/**
+	 * Resolves the file cache directory.
+	 *
+	 * @return string
+	 */
+	private static function get_file_cache_directory(): string {
+		$configured_dir = trim((string) ($_ENV['auto_loader_cache_path'] ?? ''));
+		if ($configured_dir !== '') {
+			return rtrim($configured_dir, '/');
+		}
+
+		return rtrim(sys_get_temp_dir(), '/') . '/fusionpbx_cache';
 	}
 
 	/**
@@ -519,14 +900,14 @@ class auto_loader {
 			return [];
 		}
 
-		$lookup_full = strtolower($attribute_name);
+		$lookup_full  = strtolower($attribute_name);
 		$lookup_short = strtolower($this->get_short_name($attribute_name));
-		$result = [];
+		$result       = [];
 
 		foreach ($this->attributes as $targets) {
 			foreach ($targets as $entries) {
 				foreach ($entries as $entry) {
-					$entry_name = strtolower($entry['attribute'] ?? '');
+					$entry_name  = strtolower($entry['attribute'] ?? '');
 					$entry_short = strtolower($this->get_short_name($entry['attribute'] ?? ''));
 					if ($entry_name === $lookup_full || $entry_short === $lookup_short) {
 						$result[] = $entry;
@@ -547,6 +928,7 @@ class auto_loader {
 	 */
 	public function get_class_attributes(string $class_name): array {
 		$class_name = trim($class_name);
+
 		return $this->attributes['class'][$class_name] ?? $this->attributes['interface'][$class_name] ?? $this->attributes['trait'][$class_name] ?? [];
 	}
 
@@ -571,6 +953,7 @@ class auto_loader {
 	 */
 	public function get_method_attributes(string $class_name, string $method_name): array {
 		$key = trim($class_name) . '::' . trim($method_name);
+
 		return $this->attributes['method'][$key] ?? [];
 	}
 
@@ -583,26 +966,26 @@ class auto_loader {
 	 */
 	public function get_method_list(string $attribute_name = ''): array {
 		$attribute_name = trim($attribute_name, " \n\r\t\v\x00\\");
-		$lookup_full = strtolower($attribute_name);
-		$lookup_short = strtolower($this->get_short_name($attribute_name));
-		$result = [];
+		$lookup_full    = strtolower($attribute_name);
+		$lookup_short   = strtolower($this->get_short_name($attribute_name));
+		$result         = [];
 
 		foreach ($this->attributes['method'] ?? [] as $target_name => $entries) {
 			foreach ($entries as $entry) {
-				$entry_name = strtolower($entry['attribute'] ?? '');
+				$entry_name  = strtolower($entry['attribute'] ?? '');
 				$entry_short = strtolower($this->get_short_name($entry['attribute'] ?? ''));
 
 				if ($attribute_name !== '' && $entry_name !== $lookup_full && $entry_short !== $lookup_short) {
 					continue;
 				}
 
-				$class_name = $entry['class'] ?? '';
+				$class_name  = $entry['class'] ?? '';
 				$method_name = $entry['method'] ?? '';
 
 				// support older cache entries by parsing the target when needed
 				if (($class_name === '' || $method_name === '') && strpos($target_name, '::') !== false) {
-					$parts = explode('::', $target_name, 2);
-					$class_name = $parts[0] ?? '';
+					$parts       = explode('::', $target_name, 2);
+					$class_name  = $parts[0] ?? '';
 					$method_name = $parts[1] ?? '';
 				}
 
@@ -611,15 +994,15 @@ class auto_loader {
 				}
 
 				$result[] = [
-					'class' => $class_name,
-					'method' => $method_name,
-					'callable' => [$class_name, $method_name],
+					'class'     => $class_name,
+					'method'    => $method_name,
+					'callable'  => [$class_name, $method_name],
 					'attribute' => $entry['attribute'] ?? '',
 					'arguments' => $entry['arguments'] ?? '',
-					'raw' => $entry['raw'] ?? '',
-					'target' => $target_name,
-					'file' => $entry['file'] ?? '',
-					'line' => $entry['line'] ?? 0,
+					'raw'       => $entry['raw'] ?? '',
+					'target'    => $target_name,
+					'file'      => $entry['file'] ?? '',
+					'line'      => $entry['line'] ?? 0,
 				];
 			}
 		}
@@ -639,6 +1022,7 @@ class auto_loader {
 		$constant_name = trim($constant_name);
 		if ($class_name !== '') {
 			$key = trim($class_name) . '::' . $constant_name;
+
 			return $this->attributes['class_constant'][$key] ?? [];
 		}
 
@@ -655,7 +1039,8 @@ class auto_loader {
 	 */
 	public function get_property_attributes(string $class_name, string $property_name): array {
 		$property_name = ltrim(trim($property_name), '$');
-		$key = trim($class_name) . '::$' . $property_name;
+		$key           = trim($class_name) . '::$' . $property_name;
+
 		return $this->attributes['property'][$key] ?? [];
 	}
 
@@ -666,40 +1051,15 @@ class auto_loader {
 	 */
 	private function default_attribute_map(): array {
 		return [
-			'class' => [],
-			'interface' => [],
-			'trait' => [],
-			'function' => [],
-			'method' => [],
-			'property' => [],
-			'constant' => [],
+			'class'          => [],
+			'interface'      => [],
+			'trait'          => [],
+			'function'       => [],
+			'method'         => [],
+			'property'       => [],
+			'constant'       => [],
 			'class_constant' => [],
 		];
-	}
-
-	/**
-	 * Scans all attribute metadata files and populates the in-memory index.
-	 *
-	 * @param array $scan_paths
-	 *
-	 * @return void
-	 */
-	private function reload_attributes(array $scan_paths): void {
-		$project_path = defined('PROJECT_ROOT_DIR') ? PROJECT_ROOT_DIR : dirname(__DIR__, 4);
-
-		$attribute_files = [];
-		foreach ($scan_paths as $path) {
-			$path = (string) $path;
-			if ($path === '') {
-				continue;
-			}
-			$attribute_files = array_merge($attribute_files, glob($project_path . $path));
-		}
-
-		$attribute_files = array_unique($attribute_files);
-		foreach ($attribute_files as $file) {
-			$this->parse_attribute_file($file);
-		}
 	}
 
 	/**
@@ -715,12 +1075,12 @@ class auto_loader {
 			return;
 		}
 
-		$tokens = token_get_all($file_content);
-		$namespace = '';
-		$brace_level = 0;
-		$current_class = '';
-		$next_class = '';
-		$class_brace_level = null;
+		$tokens             = token_get_all($file_content);
+		$namespace          = '';
+		$brace_level        = 0;
+		$current_class      = '';
+		$next_class         = '';
+		$class_brace_level  = null;
 		$expect_class_brace = false;
 		$pending_attributes = [];
 
@@ -732,13 +1092,13 @@ class auto_loader {
 				if ($token === '{') {
 					$brace_level++;
 					if ($expect_class_brace) {
-						$current_class = $next_class;
-						$class_brace_level = $brace_level;
+						$current_class      = $next_class;
+						$class_brace_level  = $brace_level;
 						$expect_class_brace = false;
 					}
 				} else if ($token === '}') {
 					if ($class_brace_level !== null && $brace_level === $class_brace_level) {
-						$current_class = '';
+						$current_class     = '';
 						$class_brace_level = null;
 					}
 					$brace_level = max(0, $brace_level - 1);
@@ -746,7 +1106,7 @@ class auto_loader {
 				continue;
 			}
 
-			$token_id = $token[0];
+			$token_id   = $token[0];
 			$token_text = $token[1];
 			$token_line = $token[2] ?? 0;
 
@@ -775,7 +1135,7 @@ class auto_loader {
 			}
 
 			if ($token_id === T_CLASS || $token_id === T_INTERFACE || $token_id === T_TRAIT) {
-				$prev_index = $this->next_significant_index($tokens, $i - 1, -1);
+				$prev_index       = $this->next_significant_index($tokens, $i - 1, -1);
 				$previous_was_new = ($prev_index !== null && is_array($tokens[$prev_index]) && $tokens[$prev_index][0] === T_NEW);
 				if ($previous_was_new) {
 					$pending_attributes = [];
@@ -784,9 +1144,9 @@ class auto_loader {
 
 				$name_index = $this->next_significant_index($tokens, $i + 1, 1);
 				if ($name_index !== null && is_array($tokens[$name_index]) && $tokens[$name_index][0] === T_STRING) {
-					$short_name = trim($tokens[$name_index][1]);
-					$full_name = $namespace !== '' ? $namespace . '\\' . $short_name : $short_name;
-					$next_class = $full_name;
+					$short_name         = trim($tokens[$name_index][1]);
+					$full_name          = $namespace !== '' ? $namespace . '\\' . $short_name : $short_name;
+					$next_class         = $full_name;
 					$expect_class_brace = true;
 
 					$target_type = strtolower($token_text);
@@ -804,7 +1164,7 @@ class auto_loader {
 				}
 
 				if ($name_index !== null && is_array($tokens[$name_index]) && $tokens[$name_index][0] === T_STRING) {
-					$name = trim($tokens[$name_index][1]);
+					$name      = trim($tokens[$name_index][1]);
 					$modifiers = $this->extract_method_modifiers($tokens, $i);
 					if ($current_class !== '') {
 						$target_name = $current_class . '::' . $name;
@@ -820,7 +1180,7 @@ class auto_loader {
 			}
 
 			if ($token_id === T_CONST) {
-				$constant_names = [];
+				$constant_names       = [];
 				$expect_constant_name = true;
 				for ($j = $i + 1; $j < $token_count; $j++) {
 					$current_token = $tokens[$j];
@@ -835,7 +1195,7 @@ class auto_loader {
 					}
 
 					if ($expect_constant_name && is_array($current_token) && $current_token[0] === T_STRING) {
-						$constant_names[] = $current_token[1];
+						$constant_names[]     = $current_token[1];
 						$expect_constant_name = false;
 					}
 				}
@@ -856,7 +1216,7 @@ class auto_loader {
 
 			if ($token_id === T_VARIABLE && !empty($pending_attributes) && $current_class !== '') {
 				$property_name = ltrim(trim($token_text), '$');
-				$target_name = $current_class . '::$' . $property_name;
+				$target_name   = $current_class . '::$' . $property_name;
 				$this->add_attributes_to_target($pending_attributes, 'property', $target_name, $file, $token_line);
 				$pending_attributes = [];
 				continue;
@@ -886,20 +1246,20 @@ class auto_loader {
 
 		foreach ($attributes as $attribute) {
 			$entry = [
-				'attribute' => $attribute['name'] ?? '',
-				'arguments' => $attribute['arguments'] ?? '',
-				'raw' => $attribute['raw'] ?? '',
+				'attribute'   => $attribute['name'] ?? '',
+				'arguments'   => $attribute['arguments'] ?? '',
+				'raw'         => $attribute['raw'] ?? '',
 				'target_type' => $target_type,
-				'target' => $target_name,
-				'file' => $file,
-				'line' => $line,
+				'target'      => $target_name,
+				'file'        => $file,
+				'line'        => $line,
 			];
 
 			if ($target_type === 'method' && strpos($target_name, '::') !== false) {
-				$parts = explode('::', $target_name, 2);
-				$entry['class'] = $parts[0] ?? '';
-				$entry['method'] = $parts[1] ?? '';
-				$entry['is_static'] = in_array('static', $modifiers, true);
+				$parts               = explode('::', $target_name, 2);
+				$entry['class']      = $parts[0] ?? '';
+				$entry['method']     = $parts[1] ?? '';
+				$entry['is_static']  = in_array('static', $modifiers, true);
 				$entry['visibility'] = $this->extract_visibility($modifiers);
 			}
 
@@ -916,13 +1276,13 @@ class auto_loader {
 	 * @return array
 	 */
 	private function consume_attribute_group(array $tokens, int &$index): array {
-		$buffer = '';
-		$depth = 0;
+		$buffer     = '';
+		$depth      = 0;
 		$start_line = is_array($tokens[$index]) ? ($tokens[$index][2] ?? 0) : 0;
 
 		for ($j = $index; $j < count($tokens); $j++) {
 			$current = $tokens[$j];
-			$text = is_array($current) ? $current[1] : $current;
+			$text    = is_array($current) ? $current[1] : $current;
 			$buffer .= $text;
 
 			$depth += substr_count($text, '[');
@@ -935,8 +1295,8 @@ class auto_loader {
 		}
 
 		$content = trim($buffer);
-		$inside = trim($content, "#[] \t\n\r\0\x0B");
-		$parts = $this->split_top_level_csv($inside);
+		$inside  = trim($content, "#[] \t\n\r\0\x0B");
+		$parts   = $this->split_top_level_csv($inside);
 
 		$result = [];
 		foreach ($parts as $part) {
@@ -945,18 +1305,18 @@ class auto_loader {
 				continue;
 			}
 
-			$name = $part;
+			$name      = $part;
 			$arguments = '';
 			if (preg_match('/^([\\\\a-zA-Z_][\\\\a-zA-Z0-9_]*)(?:\s*\((.*)\))?$/s', $part, $match)) {
-				$name = trim($match[1]);
+				$name      = trim($match[1]);
 				$arguments = isset($match[2]) ? trim($match[2]) : '';
 			}
 
 			$result[] = [
-				'name' => $name,
+				'name'      => $name,
 				'arguments' => $arguments,
-				'raw' => $part,
-				'line' => $start_line,
+				'raw'       => $part,
+				'line'      => $start_line,
 			];
 		}
 
@@ -971,11 +1331,11 @@ class auto_loader {
 	 * @return array
 	 */
 	private function split_top_level_csv(string $value): array {
-		$result = [];
-		$current = '';
-		$paren_depth = 0;
+		$result        = [];
+		$current       = '';
+		$paren_depth   = 0;
 		$bracket_depth = 0;
-		$length = strlen($value);
+		$length        = strlen($value);
 
 		for ($i = 0; $i < $length; $i++) {
 			$char = $value[$i];
@@ -991,7 +1351,7 @@ class auto_loader {
 
 			if ($char === ',' && $paren_depth === 0 && $bracket_depth === 0) {
 				$result[] = trim($current);
-				$current = '';
+				$current  = '';
 				continue;
 			}
 
@@ -1063,7 +1423,7 @@ class auto_loader {
 				continue;
 			}
 
-			$token_id = $token[0];
+			$token_id   = $token[0];
 			$token_text = trim($token[1] ?? '');
 
 			// Stop at attribute start
@@ -1072,8 +1432,12 @@ class auto_loader {
 			}
 
 			// Capture modifier keywords
-			if ($token_id === T_STATIC || $token_id === T_PUBLIC || $token_id === T_PROTECTED ||
-			    $token_id === T_PRIVATE || $token_id === T_ABSTRACT || $token_id === T_FINAL) {
+			if ($token_id === T_STATIC ||
+					$token_id === T_PUBLIC ||
+					$token_id === T_PROTECTED ||
+					$token_id === T_PRIVATE ||
+					$token_id === T_ABSTRACT ||
+					$token_id === T_FINAL) {
 				$modifiers[] = strtolower($token_text);
 			}
 		}
@@ -1095,6 +1459,7 @@ class auto_loader {
 		if (in_array('protected', $modifiers, true)) {
 			return 'protected';
 		}
+
 		// public is the default if no visibility modifier is specified
 		return 'public';
 	}
@@ -1131,6 +1496,7 @@ class auto_loader {
 	 */
 	private function get_short_name(string $name): string {
 		$parts = explode('\\', trim($name, '\\'));
+
 		return end($parts) ?: '';
 	}
 
@@ -1143,7 +1509,7 @@ class auto_loader {
 	 */
 	public function get_class_list(string $parent = ''): array {
 		$classes = [];
-		//make sure we can return values if no classes have been loaded
+		// make sure we can return values if no classes have been loaded
 		if (!empty($this->classes)) {
 			if ($parent !== '') {
 				foreach ($this->classes as $class_name => $path) {
@@ -1155,6 +1521,7 @@ class auto_loader {
 				$classes = $this->classes;
 			}
 		}
+
 		return $classes;
 	}
 
@@ -1166,25 +1533,25 @@ class auto_loader {
 	 * @return array
 	 */
 	public function get_interface_list(string $interface_name): array {
-		//make sure we can return values
+		// make sure we can return values
 		if (empty($this->classes) || empty($this->interfaces)) {
 			return [];
 		}
 
-		//get direct implementers of this interface
+		// get direct implementers of this interface
 		$result = $this->interfaces[$interface_name] ?? [];
 
-		//find all child interfaces (interfaces that extend this interface)
+		// find all child interfaces (interfaces that extend this interface)
 		$child_interfaces = $this->get_child_interfaces($interface_name);
 
-		//for each child interface, get its implementers
+		// for each child interface, get its implementers
 		foreach ($child_interfaces as $child_interface) {
 			if (!empty($this->interfaces[$child_interface])) {
 				$result = array_merge($result, $this->interfaces[$child_interface]);
 			}
 		}
 
-		//remove duplicates and return
+		// remove duplicates and return
 		return array_unique($result);
 	}
 
@@ -1203,6 +1570,7 @@ class auto_loader {
 		if (empty($this->classes) || empty($this->interfaces)) {
 			return [];
 		}
+
 		return $this->interfaces[$interface_name] ?? [];
 	}
 
@@ -1246,6 +1614,7 @@ class auto_loader {
 		if (!empty($this->interfaces)) {
 			return $this->interfaces;
 		}
+
 		return [];
 	}
 
@@ -1258,6 +1627,7 @@ class auto_loader {
 		if (!empty($this->traits)) {
 			return $this->traits;
 		}
+
 		return [];
 	}
 
@@ -1269,11 +1639,10 @@ class auto_loader {
 	 * @return bool True if the class is loaded or false when the class is not found
 	 */
 	public function loader($class_name): bool {
-
 		$this->debug("Attempting to load class '$class_name'");
 
-		//sanitize the class name (preserve backslashes for namespaces)
-		$class_name = preg_replace('/[^a-zA-Z0-9_\\\\]/', '', $class_name);
+		// sanitize the class name (preserve backslashes for namespaces)
+		$class_name  = preg_replace('/[^a-zA-Z0-9_\\\\]/', '', $class_name);
 		$lookup_name = $class_name;
 		if (!isset($this->classes[$lookup_name])) {
 			$lower_lookup_name = strtolower($lookup_name);
@@ -1282,31 +1651,38 @@ class auto_loader {
 			}
 		}
 
-		//find the path using the class_name as the key in the classes array
+		// find the path using the class_name as the key in the classes array
 		if (isset($this->classes[$lookup_name])) {
-			//include the class or interface
+			// include the class or interface
 			$result = @include_once $this->classes[$lookup_name];
 
-			//check for edge case where the file was deleted after cache creation
+			// check for edge case where the file was deleted after cache creation
 			if ($result === false) {
-				//send to syslog when debugging
+				// send to syslog when debugging
 				$this->error("class '$class_name' registered but include failed (file deleted?). Removed from cache.");
 
-				//remove the class from the array
+				// remove the class from the array
 				unset($this->classes[$lookup_name]);
 
-				//return failure
+				// return failure
 				return false;
 			}
 
-			//return success
+			// return success
 			return true;
 		}
 
-		//cache miss
-		$this->warning("class '$class_name' not found in cache");
+		// cache miss
+		if (empty($this->missing_class_warnings[$class_name])) {
+			$this->warning("class '$class_name' not found in cache");
+			$this->missing_class_warnings[$class_name] = true;
+		}
 
 		return false;
 	}
 
+	public static function unload_me(auto_loader $loader): void {
+		spl_autoload_unregister([$loader, 'loader']);
+		unset($loader);
+	}
 }

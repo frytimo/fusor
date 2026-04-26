@@ -88,44 +88,80 @@ class env_loader {
 	/**
 	 * Sets parsed values into $_ENV and process env.
 	 *
+	 * Section names are ignored so keys are always available as flat
+	 * root-level env settings (for example $_ENV['PROJECT_ROOT']).
+	 * Existing values (such as CLI-provided env vars) are preserved.
+	 *
 	 * @return void
 	 */
 	public static function set_env(): void {
-		foreach (self::$env_settings as $section => $settings) {
-			if (!is_array($settings)) {
+		foreach (self::$env_settings as $key_or_section => $value_or_settings) {
+			if (is_array($value_or_settings)) {
+				foreach ($value_or_settings as $key => $value) {
+					self::set_env_key_value($key, $value);
+				}
 				continue;
 			}
 
-			if (!isset($_ENV[$section]) || !is_array($_ENV[$section])) {
-				$_ENV[$section] = [];
-			}
-
-			foreach ($settings as $key => $value) {
-				if (!is_string($key) || !is_scalar($value)) {
-					continue;
-				}
-
-				$normalized_value = self::normalize_env_value($key, (string) $value);
-
-				// Collapse dotted keys (e.g. scan_path.0, scan_path.1) into nested arrays
-				if (($dot_pos = strpos($key, '.')) !== false) {
-					$parent = substr($key, 0, $dot_pos);
-					$child = substr($key, $dot_pos + 1);
-					if (!isset($_ENV[$section][$parent]) || !is_array($_ENV[$section][$parent])) {
-						$_ENV[$section][$parent] = [];
-					}
-					if (ctype_digit($child)) {
-						$_ENV[$section][$parent][(int) $child] = $normalized_value;
-					} else {
-						$_ENV[$section][$parent][$child] = $normalized_value;
-					}
-				} else {
-					$_ENV[$section][$key] = $normalized_value;
-				}
-
-				@putenv($section . '.' . $key . '=' . $normalized_value);
-			}
+			self::set_env_key_value($key_or_section, $value_or_settings);
 		}
+	}
+
+	/**
+	 * Sets a single env key while preserving CLI/process-provided values.
+	 *
+	 * @param mixed $key
+	 * @param mixed $value
+	 *
+	 * @return void
+	 */
+	private static function set_env_key_value($key, $value): void {
+		if (!is_string($key) || !is_scalar($value)) {
+			return;
+		}
+
+		$normalized_value = self::normalize_env_value($key, (string) $value);
+
+		// Collapse dotted keys (e.g. scan_path.0, scan_path.1) into nested arrays.
+		if (($dot_pos = strpos($key, '.')) !== false) {
+			$parent = substr($key, 0, $dot_pos);
+			$child = substr($key, $dot_pos + 1);
+
+			if (getenv($key) !== false) {
+				return;
+			}
+
+			if (isset($_ENV[$parent]) && !is_array($_ENV[$parent])) {
+				return;
+			}
+
+			if (!isset($_ENV[$parent]) || !is_array($_ENV[$parent])) {
+				$_ENV[$parent] = [];
+			}
+
+			if (ctype_digit($child)) {
+				$index = (int) $child;
+				if (array_key_exists($index, $_ENV[$parent])) {
+					return;
+				}
+				$_ENV[$parent][$index] = $normalized_value;
+			} else {
+				if (array_key_exists($child, $_ENV[$parent])) {
+					return;
+				}
+				$_ENV[$parent][$child] = $normalized_value;
+			}
+
+			@putenv($key . '=' . $normalized_value);
+			return;
+		}
+
+		if (array_key_exists($key, $_ENV) || getenv($key) !== false) {
+			return;
+		}
+
+		$_ENV[$key] = $normalized_value;
+		@putenv($key . '=' . $normalized_value);
 	}
 
 	/**

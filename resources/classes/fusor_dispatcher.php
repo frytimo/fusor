@@ -133,12 +133,12 @@ class fusor_dispatcher {
 	 * Returns whether `.../*` listeners should also match the base directory
 	 * path with no trailing segment.
 	 *
-	 * Config key: [fusor_dispatcher] match_directory_on_wildcard=true|false
+	 * Config key: match_directory_on_wildcard=true|false
 	 *
 	 * @return bool
 	 */
 	private static function is_directory_wildcard_base_match_enabled(): bool {
-		$value = $_ENV['fusor_dispatcher']['match_directory_on_wildcard'] ?? true;
+		$value = $_ENV['match_directory_on_wildcard'] ?? true;
 
 		if (is_bool($value)) {
 			return $value;
