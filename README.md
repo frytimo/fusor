@@ -59,7 +59,7 @@ sed -i 's#;opcache.preload=#opcache.preload=/var/www/fusionpbx/app/fusor/bootstr
 sed -i 's#;opcache.preload_user=#opcache.preload_user=www-data#g' $PHP_INI
 
 # Enable auto_prepend_file
-sed -i 's#^auto_prepend_file = $#auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php#g' $PHP_INI
+sed -i -E 's~^[;[:space:]]*auto_prepend_file[[:space:]]*=.*$~auto_prepend_file = /var/www/fusionpbx/app/fusor/bootstrap.php~' "${PHP_INI}"
 
 sudo systemctl restart php$PHP_VERSION-fpm
 ```
