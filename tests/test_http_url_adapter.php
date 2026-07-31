@@ -15,6 +15,8 @@ if (!isset($autoload) || !($autoload instanceof auto_loader)) {
 $get_attribute = new \Frytimo\Fusor\resources\attributes\http_get('/fusor/url-test/', 'after');
 $post_attribute = new \Frytimo\Fusor\resources\attributes\http_post('/fusor/url-test/', 'before');
 $empty_get_attribute = new \Frytimo\Fusor\resources\attributes\http_get();
+require_once $fusor_root . '/resources/classes/fusor_activated.php';
+$activated_attribute = (new ReflectionMethod('fusor_activated', 'inject_marker'))->getAttributes()[0]->newInstance();
 
 if ($get_attribute->event_name !== 'after_http_get:/fusor/url-test') {
 	echo "FAIL: expected normalized http_get attribute event name\n";
@@ -31,8 +33,45 @@ if ($empty_get_attribute->path === '*') {
 	exit(1);
 }
 
+if (!fnmatch($activated_attribute->event_name, 'after_http_get:/core/domains/domain_json.php')) {
+	echo "FAIL: Fusor activation hook should inspect PHP responses\n";
+	exit(1);
+}
+
+$non_html_documents = [
+	json_encode(['status' => 'ok']),
+	'<?xml version="1.0"?><response>ok</response>',
+	'plain text response',
+	"%PDF-1.7\n",
+];
+foreach ($non_html_documents as $non_html_document) {
+	$non_html_event = new \Frytimo\Fusor\resources\classes\fusor_event('after_http_get:/core/domains/domain_json.php', data: ['html' => $non_html_document]);
+	fusor_activated::inject_marker($non_html_event);
+	if (($non_html_event->data['html'] ?? null) !== $non_html_document) {
+		echo "FAIL: Fusor activation hook must not modify non-HTML responses\n";
+		exit(1);
+	}
+}
+
+$html_document = "<!DOCTYPE html>\n<html><body><main>FusionPBX</main></body></html>";
+$html_event = new \Frytimo\Fusor\resources\classes\fusor_event('after_http_get:/index.php', data: ['html' => $html_document]);
+fusor_activated::inject_marker($html_event);
+$activated_html = (string) ($html_event->data['html'] ?? '');
+if (strpos($activated_html, 'Fusor active') === false || strpos($activated_html, 'Fusor active') > strpos($activated_html, '</body>')) {
+	echo "FAIL: Fusor activation marker should be inserted into HTML responses\n";
+	exit(1);
+}
+
 $captured_get_event = null;
 $captured_post_event = null;
+$before_get_hits = 0;
+
+\Frytimo\Fusor\resources\classes\fusor_dispatcher::register_listener(
+	'before_http_get*',
+	static function (\Frytimo\Fusor\resources\classes\fusor_event $event) use (&$before_get_hits): void {
+		++$before_get_hits;
+	}
+);
 
 \Frytimo\Fusor\resources\classes\fusor_dispatcher::register_listener(
 	'before_http_get:/fusor/url-test',
@@ -69,6 +108,17 @@ try {
 	$invoked_get = \Frytimo\Fusor\resources\classes\http_route_hook_dispatcher::dispatch_request_hooks($autoload, true);
 	if ($invoked_get < 1) {
 		echo "FAIL: expected GET hook to be invoked\n";
+		exit(1);
+	}
+
+	if ($before_get_hits !== 1) {
+		echo "FAIL: expected before GET listener invocation count of 1, got {$before_get_hits}\n";
+		exit(1);
+	}
+
+	$duplicate_get = \Frytimo\Fusor\resources\classes\http_route_hook_dispatcher::dispatch_request_hooks($autoload, true);
+	if ($duplicate_get !== 0 || $before_get_hits !== 1) {
+		echo "FAIL: repeated request dispatch must not invoke before GET listeners again\n";
 		exit(1);
 	}
 

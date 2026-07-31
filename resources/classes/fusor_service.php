@@ -211,7 +211,7 @@ class fusor_service extends \service {
 	 * Reload settings.
 	 * @return void
 	 */
-	protected function reload_settings(): void {
+	public function reload_settings(): void {
 		parent::$config->read();
 
 		$this->initialize_shared_memory();

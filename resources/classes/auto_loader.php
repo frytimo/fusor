@@ -1678,7 +1678,7 @@ class auto_loader {
 
 		// cache miss
 		if (empty($this->missing_class_warnings[$class_name])) {
-			$this->warning("class '$class_name' not found in cache");
+			$this->debug("class '$class_name' not found in cache");
 			$this->missing_class_warnings[$class_name] = true;
 		}
 

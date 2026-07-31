@@ -47,7 +47,7 @@ class fusor_event_service extends service {
 	 * Reload settings.
 	 * @return void
 	 */
-	protected function reload_settings(): void {
+	public function reload_settings(): void {
 		self::load_plugins();
 	}
 

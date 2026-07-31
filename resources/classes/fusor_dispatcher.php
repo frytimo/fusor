@@ -159,8 +159,8 @@ class fusor_dispatcher {
 	/**
 	 * Register all static public methods using #[on(...)] discovered by fusor_discovery.
 	 *
-	 * @param \auto_loader $autoload
-	 * @param bool         $force_refresh
+	 * @param \auto_loader $autoload      The auto_loader instance to use for discovering classes and methods with the #[on(...)] attribute.
+	 * @param bool         $force_refresh Force a refresh of the auto_loader's class map and attribute discovery. This is useful if new classes have been added since the last discovery.
 	 *
 	 * @return int Number of listeners registered
 	 */
@@ -240,7 +240,7 @@ class fusor_dispatcher {
 	 * Fallback listener discovery for environments where auto_loader does not
 	 * expose get_attributes().
 	 *
-	 * @param \auto_loader $autoload
+	 * @param \auto_loader $autoload The auto_loader instance to use for discovering classes and methods with the #[on(...)] attribute.
 	 *
 	 * @return int
 	 */
@@ -321,16 +321,33 @@ class fusor_dispatcher {
 	}
 
 	/**
-	 * Dispatch.
-	 * @param mixed $event
+	 * Dispatch the event to registered listeners
+	 *
+	 * @param fusor_event $event The event to dispatch to registered listeners.
+	 * @param array<string,bool>|null $invoked_listeners Listener keys already invoked for the current lifecycle timing.
+	 *
 	 * @return void
 	 */
-	public static function dispatch(fusor_event $event): void {
+	public static function dispatch(fusor_event $event, ?array &$invoked_listeners = null): void {
+		if ($invoked_listeners === null) {
+			$invoked_listeners = [];
+		}
+
 		$event_name = $event->name;
 		foreach (self::$listeners as $registered_event => $prioritized_listeners) {
+			// Sort the listeners by priority in ascending order so that higher priority listeners are called first.
+			usort($prioritized_listeners, function ($a, $b) {
+				return $a['priority'] <=> $b['priority']; // Sort by priority ascending
+			});
 			if (self::event_matches($registered_event, $event_name)) {
 				foreach ($prioritized_listeners as $priority => $listeners) {
 					foreach ($listeners as $listener) {
+						$listener_key = self::get_listener_key($listener);
+						if (isset($invoked_listeners[$listener_key])) {
+							continue;
+						}
+						$invoked_listeners[$listener_key] = true;
+
 						try {
 							call_user_func($listener, $event);
 						} catch (\Throwable $exception) {

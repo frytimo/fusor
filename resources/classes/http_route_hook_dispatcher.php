@@ -66,13 +66,14 @@ class http_route_hook_dispatcher {
 		];
 
 		$invoked = 0;
+		$before_invoked_listeners = [];
 		foreach ($before_events as $before_event_name) {
 			if (!fusor_dispatcher::has_listeners($before_event_name)) {
 				continue;
 			}
 
 			$event = new fusor_event($before_event_name, data: $event_data);
-			fusor_dispatcher::dispatch($event);
+			fusor_dispatcher::dispatch($event, $before_invoked_listeners);
 			++$invoked;
 		}
 
@@ -104,6 +105,7 @@ class http_route_hook_dispatcher {
 				$html_output = $output;
 				$after_event_data = $event_data;
 				$after_event_data['html'] = &$html_output;
+				$after_invoked_listeners = [];
 
 				foreach ($after_events as $after_event_name) {
 					if (!fusor_dispatcher::has_listeners($after_event_name)) {
@@ -111,7 +113,7 @@ class http_route_hook_dispatcher {
 					}
 
 					$event = new fusor_event($after_event_name, data: $after_event_data);
-					fusor_dispatcher::dispatch($event);
+					fusor_dispatcher::dispatch($event, $after_invoked_listeners);
 				}
 
 				echo $html_output;

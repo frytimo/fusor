@@ -25,18 +25,24 @@ class fusor_discovery {
 
 	/**
 	 * Discover attributes.
+	 *
 	 * @param mixed $auto_loader
 	 * @param mixed $force_refresh
+	 *
 	 * @return void
 	 */
 	public static function discover_attributes(auto_loader $auto_loader, bool $force_refresh = false): void {
-		unset($force_refresh);
-
 		self::$registry = [
 			'all' => [],
 			'by_target_type' => [],
 			'methods' => [],
 		];
+
+		// Retrieve cached registry of attributes
+		if (function_exists('apcu_enabled') && apcu_enabled() && apcu_exists(self::CACHE_KEY) && !$force_refresh) {
+			self::$registry = apcu_fetch(self::CACHE_KEY);
+			return;
+		}
 
 		if (!method_exists($auto_loader, 'get_attributes')) {
 			// Keep startup compatible when the global auto_loader implementation
@@ -50,19 +56,24 @@ class fusor_discovery {
 				continue;
 			}
 
+			// Get the target entries
 			foreach ($targets as $target_name => $entries) {
 				if (!is_array($entries)) {
 					continue;
 				}
 
+				// Normalize and store each entry in the registry
 				foreach ($entries as $entry) {
 					if (!is_array($entry)) {
 						continue;
 					}
 
+					// Normalize the entry and store it in the registry
 					$normalized = self::normalize_entry((string) $target_type, (string) $target_name, $entry);
 					self::$registry['all'][] = $normalized;
 					self::$registry['by_target_type'][$target_type][] = $normalized;
+
+					// Store method entries separately for easy access
 					if ($target_type === 'method') {
 						self::$registry['methods'][] = $normalized;
 					}
@@ -70,6 +81,10 @@ class fusor_discovery {
 			}
 		}
 
+		// Cache registry of attributes
+		if (function_exists('apcu_enabled') && apcu_enabled()) {
+			apcu_add(self::CACHE_KEY, self::$registry, 600);
+		}
 	}
 
 	/**
